@@ -25,7 +25,7 @@ type PasswordOptions = {
 };
 
 type StrengthLevel = {
-  label: "Zayif" | "Orta" | "Guclu";
+  label: "Zayıf" | "Orta" | "Güçlü";
   score: number;
   color: string;
 };
@@ -57,7 +57,7 @@ function buildPassword(length: number, options: PasswordOptions) {
   ).filter((key) => options[key]);
 
   if (enabledKeys.length === 0) {
-    return "En az bir kategori sec";
+    return "En az bir kategori seç";
   }
 
   let pool = "";
@@ -78,8 +78,8 @@ function buildPassword(length: number, options: PasswordOptions) {
 }
 
 function calculateStrength(password: string): StrengthLevel {
-  if (password === "En az bir kategori sec") {
-    return { label: "Zayif", score: 10, color: "#ff697a" };
+  if (password === "En az bir kategori seç") {
+    return { label: "Zayıf", score: 10, color: "#ff697a" };
   }
 
   let score = 0;
@@ -95,12 +95,12 @@ function calculateStrength(password: string): StrengthLevel {
   const normalized = Math.min(score, 100);
 
   if (normalized >= 75) {
-    return { label: "Guclu", score: normalized, color: "#2af5b3" };
+    return { label: "Güçlü", score: normalized, color: "#2af5b3" };
   }
   if (normalized >= 45) {
     return { label: "Orta", score: normalized, color: "#ffc96b" };
   }
-  return { label: "Zayif", score: normalized, color: "#ff697a" };
+  return { label: "Zayıf", score: normalized, color: "#ff697a" };
 }
 
 export default function HomeScreen() {
@@ -216,13 +216,13 @@ export default function HomeScreen() {
           toValue: 0.94,
           duration: 110,
           easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.spring(buttonScale, {
           toValue: 1,
           friction: 4,
           tension: 180,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]),
       Animated.sequence([
@@ -244,7 +244,7 @@ export default function HomeScreen() {
     setPassword(generated);
     revealPassword(generated);
 
-    if (generated !== "En az bir kategori sec") {
+    if (generated !== "En az bir kategori seç") {
       setHasGenerated(true);
       addGeneratedPassword(generated);
       setSaveText("Kaydet");
@@ -252,7 +252,7 @@ export default function HomeScreen() {
   };
 
   const onSavePassword = async () => {
-    if (!hasGenerated || !password || password === "En az bir kategori sec") {
+    if (!hasGenerated || !password || password === "En az bir kategori seç") {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
@@ -271,7 +271,7 @@ export default function HomeScreen() {
   };
 
   const onCopyPassword = async () => {
-    if (!password || password === "En az bir kategori sec") {
+    if (!password || password === "En az bir kategori seç") {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
@@ -359,13 +359,13 @@ export default function HomeScreen() {
               />
             </View>
             <Text style={[styles.strengthText, { color: strength.color }]}>
-              Guc: {strength.label}
+              Güç: {strength.label}
             </Text>
           </View>
           <Animated.View
             style={[styles.copyToast, { opacity: copyToastOpacity }]}
           >
-            <Text style={styles.copyToastText}>Panoya kopyalandi</Text>
+            <Text style={styles.copyToastText}>Panoya kopyalandı</Text>
           </Animated.View>
         </Animated.View>
 
@@ -399,7 +399,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Password Rules</Text>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionText}>Buyuk Harf</Text>
+            <Text style={styles.optionText}>Büyük Harf</Text>
             <Switch
               value={options.uppercase}
               onValueChange={() => {
@@ -411,7 +411,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionText}>Kucuk Harf</Text>
+            <Text style={styles.optionText}>Küçük Harf</Text>
             <Switch
               value={options.lowercase}
               onValueChange={() => {
@@ -423,7 +423,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionText}>Sayi</Text>
+            <Text style={styles.optionText}>Sayı</Text>
             <Switch
               value={options.numbers}
               onValueChange={() => {
@@ -453,7 +453,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.lengthRow}>
-            <Text style={styles.optionText}>Karakter Uzunlugu</Text>
+            <Text style={styles.optionText}>Karakter Uzunluğu</Text>
             <View style={styles.lengthControl}>
               <Pressable
                 style={styles.lengthButton}

@@ -14,16 +14,16 @@ export default function RecentPasswordsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.header}>Son Kayitlar</Text>
+        <Text style={styles.header}>Son Kayıtlar</Text>
         <Text style={styles.subHeader}>
-          En son uretilen 15 sifre listelenir
+          En son üretilen 15 şifre listelenir
         </Text>
 
         {recentPasswords.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Henuz kayit yok</Text>
+            <Text style={styles.emptyTitle}>Henüz kayıt yok</Text>
             <Text style={styles.emptyText}>
-              Ana Menu sayfasinda sifre uretince burada gorunecek.
+              Ana Menü sayfasında şifre üretince burada görünecek.
             </Text>
           </View>
         ) : (

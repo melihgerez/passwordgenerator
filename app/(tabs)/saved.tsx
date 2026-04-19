@@ -21,20 +21,20 @@ export default function SavedPasswordsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.header}>Kaydedilenler</Text>
-        <Text style={styles.subHeader}>Maksimum 30 kayit tutulur</Text>
+        <Text style={styles.subHeader}>Maksimum 30 kayıt tutulur</Text>
 
         {savedPasswords.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Henuz kaydedilen yok</Text>
+            <Text style={styles.emptyTitle}>Henüz kaydedilen yok</Text>
             <Text style={styles.emptyText}>
-              Ana Menude sifreyi urettikten sonra Kaydet ile buraya eklenir.
+              Ana Menüde şifreyi ürettikten sonra Kaydet ile buraya eklenir.
             </Text>
           </View>
         ) : (
           savedPasswords.map((item, index) => (
             <View key={`${item}-${index}`} style={styles.passwordCard}>
               <View style={styles.cardHeader}>
-                <Text style={styles.orderText}>Kayit {index + 1}</Text>
+                <Text style={styles.orderText}>Kayıt {index + 1}</Text>
                 <Pressable
                   style={styles.deleteButton}
                   onPress={() => {
