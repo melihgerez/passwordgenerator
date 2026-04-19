@@ -1,3 +1,4 @@
+import { Audio } from "expo-av";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -110,6 +111,7 @@ export default function HomeScreen() {
   const copyToastOpacity = useRef(new Animated.Value(0)).current;
   const typingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const successSound = useRef<Audio.Sound | null>(null);
 
   const { addGeneratedPassword, savePassword } = usePasswordStore();
 
@@ -165,8 +167,56 @@ export default function HomeScreen() {
       if (saveResetTimer.current) {
         clearTimeout(saveResetTimer.current);
       }
+      if (successSound.current) {
+        void successSound.current.unloadAsync();
+        successSound.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSuccessSound = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+        });
+
+        const { sound } = await Audio.Sound.createAsync(
+          require("../../assets/sounds/success.mp3"),
+          { shouldPlay: false, volume: 1 },
+        );
+
+        if (!isMounted) {
+          await sound.unloadAsync();
+          return;
+        }
+
+        successSound.current = sound;
+      } catch {
+        successSound.current = null;
+      }
+    };
+
+    void loadSuccessSound();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const playSuccessSound = async () => {
+    if (!successSound.current) {
+      return;
+    }
+
+    try {
+      await successSound.current.replayAsync();
+    } catch {
+      // Sessizce devam et: ses çalmazsa üretim akışını bozmayalım.
+    }
+  };
 
   const revealPassword = (nextPassword: string) => {
     if (typingTimer.current) {
@@ -248,6 +298,7 @@ export default function HomeScreen() {
       setHasGenerated(true);
       addGeneratedPassword(generated);
       setSaveText("Kaydet");
+      void playSuccessSound();
     }
   };
 
@@ -487,8 +538,8 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 18,
+    paddingTop: 42,
+    paddingBottom: 32,
     gap: 10,
   },
   bgOrbTop: {
@@ -639,8 +690,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(116, 167, 255, 0.4)",
     backgroundColor: "rgba(8, 25, 42, 0.9)",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
+    paddingVertical: 10,
+    gap: 6,
   },
   sectionTitle: {
     color: "#c5d9ff",

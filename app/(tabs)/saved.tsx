@@ -60,8 +60,8 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 24,
+    paddingTop: 42,
+    paddingBottom: 32,
     gap: 10,
   },
   bgOrbTop: {
