@@ -104,6 +104,18 @@ function calculateStrength(password: string): StrengthLevel {
   return { label: "Zayıf", score: normalized, color: "#ff697a" };
 }
 
+async function warmupSound(sound: Audio.Sound) {
+  try {
+    await sound.setStatusAsync({ volume: 0 });
+    await sound.playFromPositionAsync(0);
+    await sound.pauseAsync();
+    await sound.setPositionAsync(0);
+    await sound.setStatusAsync({ volume: 1 });
+  } catch {
+    // Warmup başarısız olsa da normal kullanım devam eder.
+  }
+}
+
 export default function HomeScreen() {
   const buttonScale = useRef(new Animated.Value(1)).current;
   const buttonGlow = useRef(new Animated.Value(0)).current;
@@ -111,15 +123,25 @@ export default function HomeScreen() {
   const copyToastOpacity = useRef(new Animated.Value(0)).current;
   const typingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const successSound = useRef<Audio.Sound | null>(null);
+  const sounds = useRef<{
+    success: Audio.Sound | null;
+    strong: Audio.Sound | null;
+    save: Audio.Sound | null;
+    error: Audio.Sound | null;
+    copy: Audio.Sound | null;
+  }>({
+    success: null,
+    strong: null,
+    save: null,
+    error: null,
+    copy: null,
+  });
 
   const { addGeneratedPassword, savePassword } = usePasswordStore();
 
   const [passwordLength, setPasswordLength] = useState(12);
-  const [password, setPassword] = useState("PulseGenerate_2026!");
-  const [animatedPassword, setAnimatedPassword] = useState(
-    "PulseGenerate_2026!",
-  );
+  const [password, setPassword] = useState("Your_Passkey");
+  const [animatedPassword, setAnimatedPassword] = useState("Your_Passkey");
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [copyText, setCopyText] = useState("Copy");
@@ -167,52 +189,112 @@ export default function HomeScreen() {
       if (saveResetTimer.current) {
         clearTimeout(saveResetTimer.current);
       }
-      if (successSound.current) {
-        void successSound.current.unloadAsync();
-        successSound.current = null;
-      }
+      void Promise.all(
+        Object.values(sounds.current)
+          .filter((sound): sound is Audio.Sound => sound !== null)
+          .map((sound) => sound.unloadAsync()),
+      );
+      sounds.current = {
+        success: null,
+        strong: null,
+        save: null,
+        error: null,
+        copy: null,
+      };
     };
-  }, []);
+  }, [sounds]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadSuccessSound = async () => {
+    const loadSounds = async () => {
       try {
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
         });
 
-        const { sound } = await Audio.Sound.createAsync(
-          require("../../assets/sounds/success.mp3"),
-          { shouldPlay: false, volume: 1 },
-        );
+        const [
+          { sound: success },
+          { sound: strong },
+          { sound: save },
+          { sound: error },
+          { sound: copy },
+        ] = await Promise.all([
+          Audio.Sound.createAsync(require("../../assets/sounds/success.mp3"), {
+            shouldPlay: false,
+            volume: 1,
+          }),
+          Audio.Sound.createAsync(require("../../assets/sounds/strong.mp3"), {
+            shouldPlay: false,
+            volume: 1,
+          }),
+          Audio.Sound.createAsync(require("../../assets/sounds/save.mp3"), {
+            shouldPlay: false,
+            volume: 1,
+          }),
+          Audio.Sound.createAsync(require("../../assets/sounds/error.mp3"), {
+            shouldPlay: false,
+            volume: 1,
+          }),
+          Audio.Sound.createAsync(require("../../assets/sounds/copy.mp3"), {
+            shouldPlay: false,
+            volume: 1,
+          }),
+        ]);
 
         if (!isMounted) {
-          await sound.unloadAsync();
+          await Promise.all([
+            success.unloadAsync(),
+            strong.unloadAsync(),
+            save.unloadAsync(),
+            error.unloadAsync(),
+            copy.unloadAsync(),
+          ]);
           return;
         }
 
-        successSound.current = sound;
+        sounds.current = {
+          success,
+          strong,
+          save,
+          error,
+          copy,
+        };
+
+        void Promise.all([
+          warmupSound(success),
+          warmupSound(strong),
+          warmupSound(save),
+          warmupSound(error),
+          warmupSound(copy),
+        ]);
       } catch {
-        successSound.current = null;
+        sounds.current = {
+          success: null,
+          strong: null,
+          save: null,
+          error: null,
+          copy: null,
+        };
       }
     };
 
-    void loadSuccessSound();
+    void loadSounds();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const playSuccessSound = async () => {
-    if (!successSound.current) {
+  const playSound = async (type: keyof typeof sounds.current) => {
+    const sound = sounds.current[type];
+
+    if (!sound) {
       return;
     }
 
     try {
-      await successSound.current.replayAsync();
+      await sound.replayAsync();
     } catch {
       // Sessizce devam et: ses çalmazsa üretim akışını bozmayalım.
     }
@@ -258,7 +340,18 @@ export default function HomeScreen() {
   };
 
   const onGenerate = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const generated = buildPassword(passwordLength, options);
+    const generatedStrength = calculateStrength(generated);
+
+    if (generated === "En az bir kategori seç") {
+      void playSound("error");
+    } else if (generatedStrength.label === "Güçlü") {
+      void playSound("strong");
+    } else {
+      void playSound("success");
+    }
 
     Animated.parallel([
       Animated.sequence([
@@ -290,16 +383,17 @@ export default function HomeScreen() {
       ]),
     ]).start();
 
-    const generated = buildPassword(passwordLength, options);
     setPassword(generated);
     revealPassword(generated);
 
-    if (generated !== "En az bir kategori seç") {
-      setHasGenerated(true);
-      addGeneratedPassword(generated);
-      setSaveText("Kaydet");
-      void playSuccessSound();
+    if (generated === "En az bir kategori seç") {
+      setHasGenerated(false);
+      return;
     }
+
+    setHasGenerated(true);
+    addGeneratedPassword(generated);
+    setSaveText("Kaydet");
   };
 
   const onSavePassword = async () => {
@@ -310,7 +404,8 @@ export default function HomeScreen() {
 
     savePassword(password);
     setSaveText("Kaydedildi");
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void playSound("save");
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     if (saveResetTimer.current) {
       clearTimeout(saveResetTimer.current);
@@ -327,8 +422,9 @@ export default function HomeScreen() {
       return;
     }
 
+    void playSound("copy");
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await Clipboard.setStringAsync(password);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     setCopyText("Copied!");
     Animated.sequence([
