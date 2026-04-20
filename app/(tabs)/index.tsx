@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -466,6 +467,14 @@ export default function HomeScreen() {
     inputRange: [0, 1],
     outputRange: ["rgba(54, 232, 196, 0.25)", "rgba(54, 232, 196, 0.6)"],
   });
+  const androidGlowOpacity = buttonGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.22, 0.62],
+  });
+  const androidGlowScale = buttonGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.06],
+  });
 
   return (
     <View style={styles.screen}>
@@ -553,6 +562,29 @@ export default function HomeScreen() {
             },
           ]}
         >
+          {Platform.OS === "android" && (
+            <>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.androidGlow,
+                  {
+                    opacity: androidGlowOpacity,
+                    transform: [{ scale: androidGlowScale }],
+                  },
+                ]}
+              />
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.androidGlowInner,
+                  {
+                    opacity: androidGlowOpacity,
+                  },
+                ]}
+              />
+            </>
+          )}
           <Pressable
             style={styles.generateButton}
             onPress={() => {
@@ -572,6 +604,7 @@ export default function HomeScreen() {
           <View style={styles.optionRow}>
             <Text style={styles.optionText}>{strings.home.uppercase}</Text>
             <Switch
+              style={styles.ruleSwitch}
               value={options.uppercase}
               onValueChange={() => {
                 void toggleOption("uppercase");
@@ -584,6 +617,7 @@ export default function HomeScreen() {
           <View style={styles.optionRow}>
             <Text style={styles.optionText}>{strings.home.lowercase}</Text>
             <Switch
+              style={styles.ruleSwitch}
               value={options.lowercase}
               onValueChange={() => {
                 void toggleOption("lowercase");
@@ -596,6 +630,7 @@ export default function HomeScreen() {
           <View style={styles.optionRow}>
             <Text style={styles.optionText}>{strings.home.numbers}</Text>
             <Switch
+              style={styles.ruleSwitch}
               value={options.numbers}
               onValueChange={() => {
                 void toggleOption("numbers");
@@ -608,6 +643,7 @@ export default function HomeScreen() {
           <View style={styles.optionRow}>
             <Text style={styles.optionText}>{strings.home.symbols}</Text>
             <Switch
+              style={styles.ruleSwitch}
               value={options.symbols}
               onValueChange={() => {
                 void toggleOption("symbols");
@@ -788,6 +824,32 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     borderRadius: 30,
     padding: 2,
+    position: "relative",
+    overflow: "visible",
+  },
+  androidGlow: {
+    position: "absolute",
+    top: -9,
+    left: -5,
+    right: -5,
+    bottom: -9,
+    borderRadius: 34,
+    backgroundColor: "rgba(56, 255, 217, 0.24)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 255, 217, 0.5)",
+    elevation: 8,
+  },
+  androidGlowInner: {
+    position: "absolute",
+    top: -4,
+    left: -2,
+    right: -2,
+    bottom: -4,
+    borderRadius: 31,
+    backgroundColor: "rgba(56, 255, 217, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(56, 255, 217, 0.38)",
+    elevation: 5,
   },
   generateButton: {
     alignItems: "center",
@@ -811,24 +873,33 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(8, 25, 42, 0.9)",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    gap: 6,
+    gap: Platform.OS === "ios" ? 8 : 4,
   },
   sectionTitle: {
     color: "#c5d9ff",
     fontSize: 17,
-    fontWeight: "700",
+    fontWeight: Platform.OS === "ios" ? "700" : "800",
+    letterSpacing: Platform.OS === "ios" ? 0 : 0.25,
     marginBottom: 2,
   },
   optionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 4,
+    paddingVertical: Platform.OS === "ios" ? 6 : 2,
   },
   optionText: {
     color: "#ecf8ff",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: Platform.OS === "ios" ? "600" : "700",
+    letterSpacing: Platform.OS === "ios" ? 0 : 0.2,
+  },
+  ruleSwitch: {
+    transform:
+      Platform.OS === "android"
+        ? [{ scaleX: 1.18 }, { scaleY: 1.18 }]
+        : [{ scaleX: 1 }, { scaleY: 1 }],
+    marginLeft: Platform.OS === "android" ? -2 : 0,
   },
   ruleSummary: {
     marginTop: 3,
