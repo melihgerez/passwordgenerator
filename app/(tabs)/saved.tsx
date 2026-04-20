@@ -1,4 +1,5 @@
 import { Audio } from "expo-av";
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -35,16 +36,24 @@ export default function SavedPasswordsScreen() {
     usePasswordStore();
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   const [justSaved, setJustSaved] = useState<Record<string, boolean>>({});
+  const [copiedToastById, setCopiedToastById] = useState<
+    Record<string, boolean>
+  >({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const hideSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>(
     {},
   );
+  const copiedToastTimers = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
   const sounds = useRef<{
     save: Audio.Sound | null;
     delete: Audio.Sound | null;
+    copy: Audio.Sound | null;
   }>({
     save: null,
     delete: null,
+    copy: null,
   });
 
   const dateFormatter = useMemo(
@@ -78,31 +87,46 @@ export default function SavedPasswordsScreen() {
           playsInSilentModeIOS: true,
         });
 
-        const [{ sound: save }, { sound: del }] = await Promise.all([
-          Audio.Sound.createAsync(require("../../assets/sounds/save.mp3"), {
-            shouldPlay: false,
-            volume: 1,
-          }),
-          Audio.Sound.createAsync(require("../../assets/sounds/delete.mp3"), {
-            shouldPlay: false,
-            volume: 1,
-          }),
-        ]);
+        const [{ sound: save }, { sound: del }, { sound: copy }] =
+          await Promise.all([
+            Audio.Sound.createAsync(require("../../assets/sounds/save.mp3"), {
+              shouldPlay: false,
+              volume: 1,
+            }),
+            Audio.Sound.createAsync(require("../../assets/sounds/delete.mp3"), {
+              shouldPlay: false,
+              volume: 1,
+            }),
+            Audio.Sound.createAsync(require("../../assets/sounds/copy.mp3"), {
+              shouldPlay: false,
+              volume: 1,
+            }),
+          ]);
 
         if (!isMounted) {
-          await Promise.all([save.unloadAsync(), del.unloadAsync()]);
+          await Promise.all([
+            save.unloadAsync(),
+            del.unloadAsync(),
+            copy.unloadAsync(),
+          ]);
           return;
         }
 
         sounds.current = {
           save,
           delete: del,
+          copy,
         };
-        void Promise.all([warmupSound(save), warmupSound(del)]);
+        void Promise.all([
+          warmupSound(save),
+          warmupSound(del),
+          warmupSound(copy),
+        ]);
       } catch {
         sounds.current = {
           save: null,
           delete: null,
+          copy: null,
         };
       }
     };
@@ -115,6 +139,10 @@ export default function SavedPasswordsScreen() {
         clearTimeout(timer);
       });
       hideSaveTimers.current = {};
+      Object.values(copiedToastTimers.current).forEach((timer) => {
+        clearTimeout(timer);
+      });
+      copiedToastTimers.current = {};
 
       void Promise.all(
         Object.values(sounds.current)
@@ -124,6 +152,7 @@ export default function SavedPasswordsScreen() {
       sounds.current = {
         save: null,
         delete: null,
+        copy: null,
       };
     };
   }, []);
@@ -170,6 +199,29 @@ export default function SavedPasswordsScreen() {
       }));
       delete hideSaveTimers.current[id];
     }, 900);
+  };
+
+  const onCopySaved = async (id: string, password: string) => {
+    void playSound("copy");
+    await Clipboard.setStringAsync(password);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (copiedToastTimers.current[id]) {
+      clearTimeout(copiedToastTimers.current[id]);
+    }
+
+    setCopiedToastById((prev) => ({
+      ...prev,
+      [id]: true,
+    }));
+
+    copiedToastTimers.current[id] = setTimeout(() => {
+      setCopiedToastById((prev) => ({
+        ...prev,
+        [id]: false,
+      }));
+      delete copiedToastTimers.current[id];
+    }, 850);
   };
 
   const formatDate = (isoDate: string) =>
@@ -231,6 +283,23 @@ export default function SavedPasswordsScreen() {
                     </Text>
                   </Pressable>
                 )}
+              </View>
+
+              <Text style={styles.passwordText}>{item.password}</Text>
+
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={styles.copyButton}
+                  onPress={() => {
+                    void onCopySaved(item.id, item.password);
+                  }}
+                >
+                  <Text style={styles.copyButtonText}>
+                    {copiedToastById[item.id]
+                      ? strings.common.copied
+                      : strings.common.copy}
+                  </Text>
+                </Pressable>
                 <Pressable
                   style={styles.deleteButton}
                   onPress={() => {
@@ -242,8 +311,6 @@ export default function SavedPasswordsScreen() {
                   </Text>
                 </Pressable>
               </View>
-
-              <Text style={styles.passwordText}>{item.password}</Text>
             </View>
           ))
         )}
@@ -396,5 +463,25 @@ const styles = StyleSheet.create({
     color: "#f2fffc",
     fontSize: 16,
     fontWeight: "600",
+  },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 2,
+  },
+  copyButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(127, 251, 226, 0.7)",
+    backgroundColor: "rgba(24, 232, 198, 0.16)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  copyButtonText: {
+    color: "#d8fff8",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
   },
 });

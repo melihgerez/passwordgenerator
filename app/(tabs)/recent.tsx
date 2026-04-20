@@ -1,4 +1,5 @@
 import { Audio } from "expo-av";
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -34,15 +35,23 @@ export default function RecentPasswordsScreen() {
   const [savedToastById, setSavedToastById] = useState<Record<string, boolean>>(
     {},
   );
+  const [copiedToastById, setCopiedToastById] = useState<
+    Record<string, boolean>
+  >({});
   const savedToastTimers = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
+  const copiedToastTimers = useRef<
     Record<string, ReturnType<typeof setTimeout>>
   >({});
   const sounds = useRef<{
     save: Audio.Sound | null;
     delete: Audio.Sound | null;
+    copy: Audio.Sound | null;
   }>({
     save: null,
     delete: null,
+    copy: null,
   });
 
   const dateFormatter = useMemo(
@@ -66,32 +75,47 @@ export default function RecentPasswordsScreen() {
           playsInSilentModeIOS: true,
         });
 
-        const [{ sound: save }, { sound: del }] = await Promise.all([
-          Audio.Sound.createAsync(require("../../assets/sounds/save.mp3"), {
-            shouldPlay: false,
-            volume: 1,
-          }),
-          Audio.Sound.createAsync(require("../../assets/sounds/delete.mp3"), {
-            shouldPlay: false,
-            volume: 1,
-          }),
-        ]);
+        const [{ sound: save }, { sound: del }, { sound: copy }] =
+          await Promise.all([
+            Audio.Sound.createAsync(require("../../assets/sounds/save.mp3"), {
+              shouldPlay: false,
+              volume: 1,
+            }),
+            Audio.Sound.createAsync(require("../../assets/sounds/delete.mp3"), {
+              shouldPlay: false,
+              volume: 1,
+            }),
+            Audio.Sound.createAsync(require("../../assets/sounds/copy.mp3"), {
+              shouldPlay: false,
+              volume: 1,
+            }),
+          ]);
 
         if (!isMounted) {
-          await Promise.all([save.unloadAsync(), del.unloadAsync()]);
+          await Promise.all([
+            save.unloadAsync(),
+            del.unloadAsync(),
+            copy.unloadAsync(),
+          ]);
           return;
         }
 
         sounds.current = {
           save,
           delete: del,
+          copy,
         };
 
-        void Promise.all([warmupSound(save), warmupSound(del)]);
+        void Promise.all([
+          warmupSound(save),
+          warmupSound(del),
+          warmupSound(copy),
+        ]);
       } catch {
         sounds.current = {
           save: null,
           delete: null,
+          copy: null,
         };
       }
     };
@@ -104,6 +128,10 @@ export default function RecentPasswordsScreen() {
         clearTimeout(timer);
       });
       savedToastTimers.current = {};
+      Object.values(copiedToastTimers.current).forEach((timer) => {
+        clearTimeout(timer);
+      });
+      copiedToastTimers.current = {};
 
       void Promise.all(
         Object.values(sounds.current)
@@ -113,6 +141,7 @@ export default function RecentPasswordsScreen() {
       sounds.current = {
         save: null,
         delete: null,
+        copy: null,
       };
     };
   }, []);
@@ -158,6 +187,29 @@ export default function RecentPasswordsScreen() {
     removeRecentPassword(id);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPendingDeleteId(null);
+  };
+
+  const onCopyRecent = async (id: string, password: string) => {
+    void playSound("copy");
+    await Clipboard.setStringAsync(password);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (copiedToastTimers.current[id]) {
+      clearTimeout(copiedToastTimers.current[id]);
+    }
+
+    setCopiedToastById((prev) => ({
+      ...prev,
+      [id]: true,
+    }));
+
+    copiedToastTimers.current[id] = setTimeout(() => {
+      setCopiedToastById((prev) => ({
+        ...prev,
+        [id]: false,
+      }));
+      delete copiedToastTimers.current[id];
+    }, 850);
   };
 
   const onClearAllRecentConfirmed = async () => {
@@ -217,6 +269,18 @@ export default function RecentPasswordsScreen() {
               </View>
               <Text style={styles.passwordText}>{item.password}</Text>
               <View style={styles.actionRow}>
+                <Pressable
+                  style={styles.copyButton}
+                  onPress={() => {
+                    void onCopyRecent(item.id, item.password);
+                  }}
+                >
+                  <Text style={styles.copyButtonText}>
+                    {copiedToastById[item.id]
+                      ? strings.common.copied
+                      : strings.common.copy}
+                  </Text>
+                </Pressable>
                 <Pressable
                   style={styles.saveButton}
                   onPress={() => {
@@ -401,6 +465,20 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: "#ddfff4",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+  copyButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(127, 251, 226, 0.7)",
+    backgroundColor: "rgba(24, 232, 198, 0.16)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  copyButtonText: {
+    color: "#d8fff8",
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.4,
