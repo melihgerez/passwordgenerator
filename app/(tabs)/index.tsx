@@ -12,11 +12,14 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { getI18n } from "@/constants/i18n";
 import { usePasswordStore } from "@/contexts/password-store";
 
 const MIN_PASSWORD_LENGTH = 6;
 const MAX_PASSWORD_LENGTH = 32;
+const NO_RULES_SENTINEL = "__NO_RULES__";
 
 type PasswordOptions = {
   uppercase: boolean;
@@ -26,7 +29,7 @@ type PasswordOptions = {
 };
 
 type StrengthLevel = {
-  label: "Zayıf" | "Orta" | "Güçlü";
+  level: "weak" | "medium" | "strong";
   score: number;
   color: string;
 };
@@ -58,7 +61,7 @@ function buildPassword(length: number, options: PasswordOptions) {
   ).filter((key) => options[key]);
 
   if (enabledKeys.length === 0) {
-    return "En az bir kategori seç";
+    return NO_RULES_SENTINEL;
   }
 
   let pool = "";
@@ -79,8 +82,8 @@ function buildPassword(length: number, options: PasswordOptions) {
 }
 
 function calculateStrength(password: string): StrengthLevel {
-  if (password === "En az bir kategori seç") {
-    return { label: "Zayıf", score: 10, color: "#ff697a" };
+  if (password === NO_RULES_SENTINEL) {
+    return { level: "weak", score: 10, color: "#ff697a" };
   }
 
   let score = 0;
@@ -96,12 +99,12 @@ function calculateStrength(password: string): StrengthLevel {
   const normalized = Math.min(score, 100);
 
   if (normalized >= 75) {
-    return { label: "Güçlü", score: normalized, color: "#2af5b3" };
+    return { level: "strong", score: normalized, color: "#2af5b3" };
   }
   if (normalized >= 45) {
-    return { label: "Orta", score: normalized, color: "#ffc96b" };
+    return { level: "medium", score: normalized, color: "#ffc96b" };
   }
-  return { label: "Zayıf", score: normalized, color: "#ff697a" };
+  return { level: "weak", score: normalized, color: "#ff697a" };
 }
 
 async function warmupSound(sound: Audio.Sound) {
@@ -117,6 +120,8 @@ async function warmupSound(sound: Audio.Sound) {
 }
 
 export default function HomeScreen() {
+  const { strings } = getI18n();
+  const insets = useSafeAreaInsets();
   const buttonScale = useRef(new Animated.Value(1)).current;
   const buttonGlow = useRef(new Animated.Value(0)).current;
   const passwordPulse = useRef(new Animated.Value(1)).current;
@@ -140,12 +145,14 @@ export default function HomeScreen() {
   const { addGeneratedPassword, savePassword } = usePasswordStore();
 
   const [passwordLength, setPasswordLength] = useState(12);
-  const [password, setPassword] = useState("Your_Passkey");
-  const [animatedPassword, setAnimatedPassword] = useState("Your_Passkey");
+  const [password, setPassword] = useState(strings.home.initialPassword);
+  const [animatedPassword, setAnimatedPassword] = useState(
+    strings.home.initialPassword,
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
-  const [copyText, setCopyText] = useState("Copy");
-  const [saveText, setSaveText] = useState("Kaydet");
+  const [copyText, setCopyText] = useState(strings.common.copy);
+  const [saveText, setSaveText] = useState(strings.common.save);
   const [options, setOptions] = useState<PasswordOptions>({
     uppercase: true,
     lowercase: true,
@@ -345,9 +352,9 @@ export default function HomeScreen() {
     const generated = buildPassword(passwordLength, options);
     const generatedStrength = calculateStrength(generated);
 
-    if (generated === "En az bir kategori seç") {
+    if (generated === NO_RULES_SENTINEL) {
       void playSound("error");
-    } else if (generatedStrength.label === "Güçlü") {
+    } else if (generatedStrength.level === "strong") {
       void playSound("strong");
     } else {
       void playSound("success");
@@ -386,24 +393,24 @@ export default function HomeScreen() {
     setPassword(generated);
     revealPassword(generated);
 
-    if (generated === "En az bir kategori seç") {
+    if (generated === NO_RULES_SENTINEL) {
       setHasGenerated(false);
       return;
     }
 
     setHasGenerated(true);
     addGeneratedPassword(generated);
-    setSaveText("Kaydet");
+    setSaveText(strings.common.save);
   };
 
   const onSavePassword = async () => {
-    if (!hasGenerated || !password || password === "En az bir kategori seç") {
+    if (!hasGenerated || !password || password === NO_RULES_SENTINEL) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
 
     savePassword(password);
-    setSaveText("Kaydedildi");
+    setSaveText(strings.common.saved);
     void playSound("save");
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -412,12 +419,12 @@ export default function HomeScreen() {
     }
 
     saveResetTimer.current = setTimeout(() => {
-      setSaveText("Kaydet");
+      setSaveText(strings.common.save);
     }, 1200);
   };
 
   const onCopyPassword = async () => {
-    if (!password || password === "En az bir kategori seç") {
+    if (!password || password === NO_RULES_SENTINEL) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
@@ -426,7 +433,7 @@ export default function HomeScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await Clipboard.setStringAsync(password);
 
-    setCopyText("Copied!");
+    setCopyText(strings.common.copied);
     Animated.sequence([
       Animated.timing(copyToastOpacity, {
         toValue: 1,
@@ -440,9 +447,20 @@ export default function HomeScreen() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setCopyText("Copy");
+      setCopyText(strings.common.copy);
     });
   };
+
+  const strengthLabel =
+    strength.level === "strong"
+      ? strings.home.strengthStrong
+      : strength.level === "medium"
+        ? strings.home.strengthMedium
+        : strings.home.strengthWeak;
+  const visiblePassword =
+    animatedPassword === NO_RULES_SENTINEL
+      ? strings.home.noRulesError
+      : animatedPassword;
 
   const glowColor = buttonGlow.interpolate({
     inputRange: [0, 1],
@@ -454,10 +472,14 @@ export default function HomeScreen() {
       <View style={styles.bgOrbTop} />
       <View style={styles.bgOrbBottom} />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(124, 100 + insets.bottom) },
+        ]}
         showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: Math.max(110, 88 + insets.bottom) }}
       >
-        <Text style={styles.header}>Quantum Key Forge</Text>
+        <Text style={styles.header}>{strings.home.title}</Text>
 
         <Animated.View
           style={[
@@ -466,7 +488,9 @@ export default function HomeScreen() {
           ]}
         >
           <View style={styles.passwordHeaderRow}>
-            <Text style={styles.passwordLabel}>Your Password</Text>
+            <Text style={styles.passwordLabel}>
+              {strings.home.passwordLabel}
+            </Text>
             <View style={styles.actionButtonsWrap}>
               <Pressable
                 style={styles.copyButton}
@@ -491,7 +515,7 @@ export default function HomeScreen() {
             numberOfLines={1}
             adjustsFontSizeToFit
           >
-            {animatedPassword || "..."}
+            {visiblePassword || "..."}
           </Text>
           <View style={styles.strengthWrap}>
             <View style={styles.strengthTrack}>
@@ -506,13 +530,13 @@ export default function HomeScreen() {
               />
             </View>
             <Text style={[styles.strengthText, { color: strength.color }]}>
-              Güç: {strength.label}
+              {strings.home.strength}: {strengthLabel}
             </Text>
           </View>
           <Animated.View
             style={[styles.copyToast, { opacity: copyToastOpacity }]}
           >
-            <Text style={styles.copyToastText}>Panoya kopyalandı</Text>
+            <Text style={styles.copyToastText}>{strings.home.copiedToast}</Text>
           </Animated.View>
         </Animated.View>
 
@@ -537,16 +561,16 @@ export default function HomeScreen() {
             disabled={isGenerating}
           >
             <Text style={styles.generateButtonText}>
-              {isGenerating ? "Generating..." : "Generate Password"}
+              {isGenerating ? strings.home.generating : strings.home.generate}
             </Text>
           </Pressable>
         </Animated.View>
 
         <View style={styles.optionsCard}>
-          <Text style={styles.sectionTitle}>Password Rules</Text>
+          <Text style={styles.sectionTitle}>{strings.home.passwordRules}</Text>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionText}>Büyük Harf</Text>
+            <Text style={styles.optionText}>{strings.home.uppercase}</Text>
             <Switch
               value={options.uppercase}
               onValueChange={() => {
@@ -558,7 +582,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionText}>Küçük Harf</Text>
+            <Text style={styles.optionText}>{strings.home.lowercase}</Text>
             <Switch
               value={options.lowercase}
               onValueChange={() => {
@@ -570,7 +594,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionText}>Sayı</Text>
+            <Text style={styles.optionText}>{strings.home.numbers}</Text>
             <Switch
               value={options.numbers}
               onValueChange={() => {
@@ -582,7 +606,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.optionRow}>
-            <Text style={styles.optionText}>Sembol</Text>
+            <Text style={styles.optionText}>{strings.home.symbols}</Text>
             <Switch
               value={options.symbols}
               onValueChange={() => {
@@ -595,12 +619,12 @@ export default function HomeScreen() {
 
           <View style={styles.ruleSummary}>
             <Text style={styles.ruleSummaryText}>
-              {enabledCount} kategori aktif
+              {strings.home.activeRules(enabledCount)}
             </Text>
           </View>
 
           <View style={styles.lengthRow}>
-            <Text style={styles.optionText}>Karakter Uzunluğu</Text>
+            <Text style={styles.optionText}>{strings.home.length}</Text>
             <View style={styles.lengthControl}>
               <Pressable
                 style={styles.lengthButton}

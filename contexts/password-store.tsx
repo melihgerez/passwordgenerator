@@ -1,7 +1,10 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -24,6 +27,7 @@ type PasswordStoreContextValue = {
   savedPasswords: SavedPasswordItem[];
   addGeneratedPassword: (password: string) => void;
   removeRecentPassword: (id: string) => void;
+  clearRecentPasswords: () => void;
   savePassword: (password: string, name?: string) => void;
   removeSavedPassword: (id: string) => void;
   renameSavedPassword: (id: string, name: string) => void;
@@ -35,6 +39,8 @@ const PasswordStoreContext = createContext<PasswordStoreContextValue | null>(
 
 const MAX_RECENT = 20;
 const MAX_SAVED = 30;
+const RECENT_STORAGE_KEY = "password-store:recent";
+const SAVED_STORAGE_KEY = "password-store:saved";
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -45,6 +51,70 @@ export function PasswordStoreProvider({ children }: PropsWithChildren) {
     [],
   );
   const [savedPasswords, setSavedPasswords] = useState<SavedPasswordItem[]>([]);
+  const hasHydrated = useRef(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const hydrateStore = async () => {
+      try {
+        const [recentRaw, savedRaw] = await Promise.all([
+          AsyncStorage.getItem(RECENT_STORAGE_KEY),
+          AsyncStorage.getItem(SAVED_STORAGE_KEY),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (recentRaw) {
+          const parsedRecent = JSON.parse(recentRaw) as RecentPasswordItem[];
+          if (Array.isArray(parsedRecent)) {
+            setRecentPasswords(parsedRecent.slice(0, MAX_RECENT));
+          }
+        }
+
+        if (savedRaw) {
+          const parsedSaved = JSON.parse(savedRaw) as SavedPasswordItem[];
+          if (Array.isArray(parsedSaved)) {
+            setSavedPasswords(parsedSaved.slice(0, MAX_SAVED));
+          }
+        }
+      } catch {
+        // Veri okunamazsa boş state ile devam edelim.
+      } finally {
+        hasHydrated.current = true;
+      }
+    };
+
+    void hydrateStore();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydrated.current) {
+      return;
+    }
+
+    void AsyncStorage.setItem(
+      RECENT_STORAGE_KEY,
+      JSON.stringify(recentPasswords),
+    );
+  }, [recentPasswords]);
+
+  useEffect(() => {
+    if (!hasHydrated.current) {
+      return;
+    }
+
+    void AsyncStorage.setItem(
+      SAVED_STORAGE_KEY,
+      JSON.stringify(savedPasswords),
+    );
+  }, [savedPasswords]);
 
   const addGeneratedPassword = (password: string) => {
     setRecentPasswords((prev) => {
@@ -60,6 +130,10 @@ export function PasswordStoreProvider({ children }: PropsWithChildren) {
 
   const removeRecentPassword = (id: string) => {
     setRecentPasswords((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const clearRecentPasswords = () => {
+    setRecentPasswords([]);
   };
 
   const savePassword = (password: string, name?: string) => {
@@ -96,6 +170,7 @@ export function PasswordStoreProvider({ children }: PropsWithChildren) {
       savedPasswords,
       addGeneratedPassword,
       removeRecentPassword,
+      clearRecentPasswords,
       savePassword,
       removeSavedPassword,
       renameSavedPassword,

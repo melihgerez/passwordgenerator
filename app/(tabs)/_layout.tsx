@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { getI18n } from "@/constants/i18n";
+
 function FuturisticTabIcon({
   icon,
   color,
@@ -36,26 +38,27 @@ function FuturisticTabIcon({
 const TAB_META: Record<
   string,
   {
-    label: string;
+    label: keyof ReturnType<typeof getI18n>["strings"]["tabs"];
     icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   }
 > = {
   index: {
-    label: "Ana Menu",
+    label: "home",
     icon: "rocket-launch-outline",
   },
   recent: {
-    label: "Son Kayitlar",
+    label: "recent",
     icon: "timeline-clock-outline",
   },
   saved: {
-    label: "Kaydedilenler",
+    label: "saved",
     icon: "shield-key-outline",
   },
 };
 
 function FuturisticTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { strings } = getI18n();
   const [barWidth, setBarWidth] = React.useState(0);
   const indicatorX = React.useRef(new Animated.Value(0)).current;
   const itemWidth = barWidth > 0 ? barWidth / state.routes.length : 0;
@@ -106,7 +109,7 @@ function FuturisticTabBar({ state, navigation }: BottomTabBarProps) {
         {state.routes.map((route, index) => {
           const focused = state.index === index;
           const meta = TAB_META[route.name] ?? {
-            label: route.name,
+            label: "home",
             icon: "circle-outline",
           };
 
@@ -127,7 +130,7 @@ function FuturisticTabBar({ state, navigation }: BottomTabBarProps) {
                 focused={focused}
               />
               <Text style={[styles.label, focused && styles.labelActive]}>
-                {meta.label}
+                {strings.tabs[meta.label]}
               </Text>
             </Pressable>
           );
@@ -138,6 +141,8 @@ function FuturisticTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabLayout() {
+  const { strings } = getI18n();
+
   return (
     <Tabs
       screenOptions={{
@@ -149,19 +154,19 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Ana Menü",
+          title: strings.tabs.home,
         }}
       />
       <Tabs.Screen
         name="recent"
         options={{
-          title: "Son Kayıtlar",
+          title: strings.tabs.recent,
         }}
       />
       <Tabs.Screen
         name="saved"
         options={{
-          title: "Kaydedilenler",
+          title: strings.tabs.saved,
         }}
       />
     </Tabs>

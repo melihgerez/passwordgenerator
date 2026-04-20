@@ -2,8 +2,10 @@ import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DeleteConfirmBubble } from "@/components/ui/delete-confirm-bubble";
+import { getI18n } from "@/constants/i18n";
 import { usePasswordStore } from "@/contexts/password-store";
 
 async function warmupSound(sound: Audio.Sound) {
@@ -19,9 +21,16 @@ async function warmupSound(sound: Audio.Sound) {
 }
 
 export default function RecentPasswordsScreen() {
-  const { recentPasswords, removeRecentPassword, savePassword } =
-    usePasswordStore();
+  const { strings, dateLocale } = getI18n();
+  const insets = useSafeAreaInsets();
+  const {
+    recentPasswords,
+    removeRecentPassword,
+    clearRecentPasswords,
+    savePassword,
+  } = usePasswordStore();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isClearAllPromptOpen, setIsClearAllPromptOpen] = useState(false);
   const [savedToastById, setSavedToastById] = useState<Record<string, boolean>>(
     {},
   );
@@ -38,14 +47,14 @@ export default function RecentPasswordsScreen() {
 
   const dateFormatter = useMemo(
     () =>
-      new Intl.DateTimeFormat("tr-TR", {
+      new Intl.DateTimeFormat(dateLocale, {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
       }),
-    [],
+    [dateLocale],
   );
 
   useEffect(() => {
@@ -151,6 +160,13 @@ export default function RecentPasswordsScreen() {
     setPendingDeleteId(null);
   };
 
+  const onClearAllRecentConfirmed = async () => {
+    void playSound("delete");
+    clearRecentPasswords();
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsClearAllPromptOpen(false);
+  };
+
   const formatDate = (isoDate: string) =>
     dateFormatter.format(new Date(isoDate));
 
@@ -160,20 +176,35 @@ export default function RecentPasswordsScreen() {
       <View style={styles.bgOrbBottom} />
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(124, 100 + insets.bottom) },
+        ]}
         showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: Math.max(110, 88 + insets.bottom) }}
       >
-        <Text style={styles.header}>Son Kayıtlar</Text>
-        <Text style={styles.subHeader}>
-          En son üretilen 20 şifre listelenir
-        </Text>
+        <Text style={styles.header}>{strings.recent.title}</Text>
+        <Text style={styles.subHeader}>{strings.recent.subtitle}</Text>
+
+        {recentPasswords.length > 0 && (
+          <View style={styles.topActionRow}>
+            <Pressable
+              style={styles.deleteAllButton}
+              onPress={() => {
+                setIsClearAllPromptOpen(true);
+              }}
+            >
+              <Text style={styles.deleteAllButtonText}>
+                {strings.recent.clearAll}
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {recentPasswords.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Henüz kayıt yok</Text>
-            <Text style={styles.emptyText}>
-              Ana Menü sayfasında şifre üretince burada görünecek.
-            </Text>
+            <Text style={styles.emptyTitle}>{strings.recent.emptyTitle}</Text>
+            <Text style={styles.emptyText}>{strings.recent.emptyText}</Text>
           </View>
         ) : (
           recentPasswords.map((item, index) => (
@@ -193,7 +224,9 @@ export default function RecentPasswordsScreen() {
                   }}
                 >
                   <Text style={styles.saveButtonText}>
-                    {savedToastById[item.id] ? "Kaydedildi" : "Kaydet"}
+                    {savedToastById[item.id]
+                      ? strings.common.saved
+                      : strings.common.save}
                   </Text>
                 </Pressable>
                 <Pressable
@@ -202,7 +235,9 @@ export default function RecentPasswordsScreen() {
                     setPendingDeleteId(item.id);
                   }}
                 >
-                  <Text style={styles.deleteButtonText}>Sil</Text>
+                  <Text style={styles.deleteButtonText}>
+                    {strings.common.delete}
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -212,7 +247,9 @@ export default function RecentPasswordsScreen() {
 
       <DeleteConfirmBubble
         visible={pendingDeleteId !== null}
-        message="Bu sifreyi silmek istediginize emin misiniz?"
+        message={strings.recent.deleteConfirm}
+        cancelLabel={strings.common.cancel}
+        confirmLabel={strings.common.delete}
         onCancel={() => {
           setPendingDeleteId(null);
         }}
@@ -221,6 +258,19 @@ export default function RecentPasswordsScreen() {
             return;
           }
           void onDeleteRecentConfirmed(pendingDeleteId);
+        }}
+      />
+
+      <DeleteConfirmBubble
+        visible={isClearAllPromptOpen}
+        message={strings.recent.deleteAllConfirm}
+        cancelLabel={strings.common.cancel}
+        confirmLabel={strings.common.deleteAll}
+        onCancel={() => {
+          setIsClearAllPromptOpen(false);
+        }}
+        onConfirm={() => {
+          void onClearAllRecentConfirmed();
         }}
       />
     </View>
@@ -268,6 +318,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 13,
     marginBottom: 4,
+  },
+  topActionRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 2,
+  },
+  deleteAllButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255, 121, 146, 0.9)",
+    backgroundColor: "rgba(255, 85, 119, 0.16)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  deleteAllButtonText: {
+    color: "#ffdce3",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   emptyCard: {
     borderRadius: 20,

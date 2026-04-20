@@ -4,6 +4,8 @@ import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 type DeleteConfirmBubbleProps = {
   visible: boolean;
   message: string;
+  cancelLabel?: string;
+  confirmLabel?: string;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -11,6 +13,8 @@ type DeleteConfirmBubbleProps = {
 export function DeleteConfirmBubble({
   visible,
   message,
+  cancelLabel = "Iptal",
+  confirmLabel = "Sil",
   onCancel,
   onConfirm,
 }: DeleteConfirmBubbleProps) {
@@ -62,10 +66,10 @@ export function DeleteConfirmBubble({
         <Text style={styles.message}>{message}</Text>
         <View style={styles.actions}>
           <Pressable style={styles.cancelButton} onPress={onCancel}>
-            <Text style={styles.cancelText}>Iptal</Text>
+            <Text style={styles.cancelText}>{cancelLabel}</Text>
           </Pressable>
           <Pressable style={styles.deleteButton} onPress={onConfirm}>
-            <Text style={styles.deleteText}>Sil</Text>
+            <Text style={styles.deleteText}>{confirmLabel}</Text>
           </Pressable>
         </View>
       </Animated.View>

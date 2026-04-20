@@ -10,8 +10,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DeleteConfirmBubble } from "@/components/ui/delete-confirm-bubble";
+import { getI18n } from "@/constants/i18n";
 import { usePasswordStore } from "@/contexts/password-store";
 
 async function warmupSound(sound: Audio.Sound) {
@@ -27,6 +29,8 @@ async function warmupSound(sound: Audio.Sound) {
 }
 
 export default function SavedPasswordsScreen() {
+  const { strings, dateLocale } = getI18n();
+  const insets = useSafeAreaInsets();
   const { savedPasswords, removeSavedPassword, renameSavedPassword } =
     usePasswordStore();
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
@@ -45,14 +49,14 @@ export default function SavedPasswordsScreen() {
 
   const dateFormatter = useMemo(
     () =>
-      new Intl.DateTimeFormat("tr-TR", {
+      new Intl.DateTimeFormat(dateLocale, {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
       }),
-    [],
+    [dateLocale],
   );
 
   useEffect(() => {
@@ -177,19 +181,21 @@ export default function SavedPasswordsScreen() {
       <View style={styles.bgOrbBottom} />
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(124, 100 + insets.bottom) },
+        ]}
         showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: Math.max(110, 88 + insets.bottom) }}
         keyboardShouldPersistTaps="always"
       >
-        <Text style={styles.header}>Kaydedilenler</Text>
-        <Text style={styles.subHeader}>Maksimum 30 kayıt tutulur</Text>
+        <Text style={styles.header}>{strings.saved.title}</Text>
+        <Text style={styles.subHeader}>{strings.saved.subtitle}</Text>
 
         {savedPasswords.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Henüz kaydedilen yok</Text>
-            <Text style={styles.emptyText}>
-              Ana Menüde şifreyi ürettikten sonra Kaydet ile buraya eklenir.
-            </Text>
+            <Text style={styles.emptyTitle}>{strings.saved.emptyTitle}</Text>
+            <Text style={styles.emptyText}>{strings.saved.emptyText}</Text>
           </View>
         ) : (
           savedPasswords.map((item, index) => (
@@ -204,7 +210,7 @@ export default function SavedPasswordsScreen() {
                     }));
                   }}
                   maxLength={15}
-                  placeholder={`Kayıt ${index + 1}`}
+                  placeholder={strings.saved.recordPlaceholder(index + 1)}
                   placeholderTextColor="#91ddff"
                   style={styles.orderInput}
                 />
@@ -219,7 +225,9 @@ export default function SavedPasswordsScreen() {
                     }}
                   >
                     <Text style={styles.saveButtonText}>
-                      {justSaved[item.id] ? "Kaydedildi" : "Kaydet"}
+                      {justSaved[item.id]
+                        ? strings.common.saved
+                        : strings.common.save}
                     </Text>
                   </Pressable>
                 )}
@@ -229,7 +237,9 @@ export default function SavedPasswordsScreen() {
                     setPendingDeleteId(item.id);
                   }}
                 >
-                  <Text style={styles.deleteButtonText}>Sil</Text>
+                  <Text style={styles.deleteButtonText}>
+                    {strings.common.delete}
+                  </Text>
                 </Pressable>
               </View>
 
@@ -241,7 +251,9 @@ export default function SavedPasswordsScreen() {
 
       <DeleteConfirmBubble
         visible={pendingDeleteId !== null}
-        message="Bu sifreyi silmek istediginize emin misiniz?"
+        message={strings.saved.deleteConfirm}
+        cancelLabel={strings.common.cancel}
+        confirmLabel={strings.common.delete}
         onCancel={() => {
           setPendingDeleteId(null);
         }}
