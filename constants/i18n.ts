@@ -33,9 +33,11 @@ export type AppStrings = {
     activeRules: (count: number) => string;
     copiedToast: string;
     noRulesError: string;
+    strengthVeryWeak: string;
     strengthWeak: string;
     strengthMedium: string;
     strengthStrong: string;
+    strengthVeryStrong: string;
   };
   recent: {
     title: string;
@@ -73,9 +75,9 @@ const strings: Record<AppLocale, AppStrings> = {
       copied: "Kopyalandı",
     },
     home: {
-      title: "Quantum Key Forge",
-      initialPassword: "Parola_Anahtarı",
-      passwordLabel: "Parolan",
+      title: "PassGen Generator",
+      initialPassword: "Parolanız",
+      passwordLabel: "Özel Anahtar",
       strength: "Güç",
       generate: "Parola Üret",
       generating: "Üretiliyor...",
@@ -88,13 +90,15 @@ const strings: Record<AppLocale, AppStrings> = {
       activeRules: (count) => `${count} kural aktif`,
       copiedToast: "Panoya kopyalandı",
       noRulesError: "En az bir kategori seç",
+      strengthVeryWeak: "Çok Zayıf",
       strengthWeak: "Zayıf",
       strengthMedium: "Orta",
       strengthStrong: "Güçlü",
+      strengthVeryStrong: "Çok Güçlü",
     },
     recent: {
       title: "Son Kayıtlar",
-      subtitle: "En son üretilen 20 şifre listelenir",
+      subtitle: "Maksimum 30 kayıt tutulur",
       clearAll: "Hepsini Sil",
       emptyTitle: "Henüz kayıt yok",
       emptyText: "Ana Menü sayfasında şifre üretince burada görünecek.",
@@ -128,9 +132,9 @@ const strings: Record<AppLocale, AppStrings> = {
       copied: "Copied",
     },
     home: {
-      title: "Quantum Key Forge",
-      initialPassword: "Your_Passkey",
-      passwordLabel: "Your Password",
+      title: "PassGen Generator",
+      initialPassword: "Your Password",
+      passwordLabel: "Secret Key",
       strength: "Strength",
       generate: "Generate Password",
       generating: "Generating...",
@@ -143,13 +147,15 @@ const strings: Record<AppLocale, AppStrings> = {
       activeRules: (count) => `${count} rules enabled`,
       copiedToast: "Copied to clipboard",
       noRulesError: "Select at least one category",
+      strengthVeryWeak: "Very Weak",
       strengthWeak: "Weak",
       strengthMedium: "Medium",
       strengthStrong: "Strong",
+      strengthVeryStrong: "Very Strong",
     },
     recent: {
       title: "Recent",
-      subtitle: "Last 20 generated passwords",
+      subtitle: "Up to 30 entries are stored",
       clearAll: "Delete All",
       emptyTitle: "No records yet",
       emptyText: "Generated passwords will appear here from the Home screen.",

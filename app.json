@@ -31,13 +31,19 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/android-icon-background.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#0A1022",
           "dark": {
             "backgroundColor": "#050913"
           }
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Uygulamaya güvenli giriş için Face ID kullanılır."
         }
       ],
       "expo-localization"

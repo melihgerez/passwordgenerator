@@ -20,10 +20,21 @@ export function DeleteConfirmBubble({
 }: DeleteConfirmBubbleProps) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(18)).current;
+  const scale = useRef(new Animated.Value(0.94)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
+      opacity.setValue(0);
+      translateY.setValue(18);
+      scale.setValue(0.94);
+
       Animated.parallel([
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 140,
+          useNativeDriver: true,
+        }),
         Animated.timing(opacity, {
           toValue: 1,
           duration: 180,
@@ -35,11 +46,22 @@ export function DeleteConfirmBubble({
           tension: 120,
           useNativeDriver: true,
         }),
+        Animated.spring(scale, {
+          toValue: 1,
+          friction: 7,
+          tension: 120,
+          useNativeDriver: true,
+        }),
       ]).start();
       return;
     }
 
     Animated.parallel([
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 110,
+        useNativeDriver: true,
+      }),
       Animated.timing(opacity, {
         toValue: 0,
         duration: 140,
@@ -50,8 +72,13 @@ export function DeleteConfirmBubble({
         duration: 140,
         useNativeDriver: true,
       }),
+      Animated.timing(scale, {
+        toValue: 0.96,
+        duration: 140,
+        useNativeDriver: true,
+      }),
     ]).start();
-  }, [visible, opacity, translateY]);
+  }, [backdropOpacity, opacity, scale, translateY, visible]);
 
   if (!visible) {
     return null;
@@ -59,9 +86,14 @@ export function DeleteConfirmBubble({
 
   return (
     <View style={styles.overlay}>
-      <Pressable style={styles.backdrop} onPress={onCancel} />
+      <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
+      </Animated.View>
       <Animated.View
-        style={[styles.bubble, { opacity, transform: [{ translateY }] }]}
+        style={[
+          styles.bubble,
+          { opacity, transform: [{ translateY }, { scale }] },
+        ]}
       >
         <Text style={styles.message}>{message}</Text>
         <View style={styles.actions}>

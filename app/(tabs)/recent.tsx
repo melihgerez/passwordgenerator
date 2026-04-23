@@ -271,7 +271,11 @@ export default function RecentPasswordsScreen() {
               <View style={styles.actionRow}>
                 <Pressable
                   style={styles.copyButton}
+                  disabled={Boolean(copiedToastById[item.id])}
                   onPress={() => {
+                    if (copiedToastById[item.id]) {
+                      return;
+                    }
                     void onCopyRecent(item.id, item.password);
                   }}
                 >
@@ -283,7 +287,11 @@ export default function RecentPasswordsScreen() {
                 </Pressable>
                 <Pressable
                   style={styles.saveButton}
+                  disabled={Boolean(savedToastById[item.id])}
                   onPress={() => {
+                    if (savedToastById[item.id]) {
+                      return;
+                    }
                     void onSaveRecent(item.id, item.password);
                   }}
                 >
@@ -373,14 +381,14 @@ const styles = StyleSheet.create({
   header: {
     color: "#e1f4ff",
     textAlign: "center",
-    fontSize: 29,
+    fontSize: 31,
     fontWeight: "800",
     letterSpacing: 0.9,
   },
   subHeader: {
     color: "#9fc2da",
     textAlign: "center",
-    fontSize: 13,
+    fontSize: 15,
     marginBottom: 4,
   },
   topActionRow: {
@@ -393,12 +401,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 121, 146, 0.9)",
     backgroundColor: "rgba(255, 85, 119, 0.16)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
   deleteAllButtonText: {
     color: "#ffdce3",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800",
     letterSpacing: 0.3,
   },
@@ -426,7 +434,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(108, 180, 255, 0.4)",
     backgroundColor: "rgba(5, 21, 36, 0.95)",
-    padding: 14,
+    padding: 16,
     gap: 6,
   },
   cardHeader: {
@@ -436,17 +444,17 @@ const styles = StyleSheet.create({
   },
   orderText: {
     color: "#7cdcff",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
   },
   timeText: {
     color: "#8eb6d2",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "500",
   },
   passwordText: {
     color: "#f2fffc",
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "600",
   },
   actionRow: {
@@ -460,12 +468,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(69, 225, 174, 0.8)",
     backgroundColor: "rgba(45, 197, 149, 0.18)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   saveButtonText: {
     color: "#ddfff4",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.4,
   },
@@ -474,12 +482,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(127, 251, 226, 0.7)",
     backgroundColor: "rgba(24, 232, 198, 0.16)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   copyButtonText: {
     color: "#d8fff8",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.4,
   },
@@ -488,12 +496,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 121, 146, 0.8)",
     backgroundColor: "rgba(255, 85, 119, 0.16)",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   deleteButtonText: {
     color: "#ffdce3",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.4,
   },

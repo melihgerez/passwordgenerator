@@ -37,7 +37,7 @@ const PasswordStoreContext = createContext<PasswordStoreContextValue | null>(
   null,
 );
 
-const MAX_RECENT = 20;
+const MAX_RECENT = 30;
 const MAX_SAVED = 30;
 const RECENT_STORAGE_KEY = "password-store:recent";
 const SAVED_STORAGE_KEY = "password-store:saved";
