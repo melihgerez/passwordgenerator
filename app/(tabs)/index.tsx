@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Slider from "@react-native-community/slider";
 import { Audio } from "expo-av";
 import * as Clipboard from "expo-clipboard";
@@ -22,6 +23,7 @@ import { usePasswordStore } from "@/contexts/password-store";
 const MIN_PASSWORD_LENGTH = 6;
 const MAX_PASSWORD_LENGTH = 64;
 const NO_RULES_SENTINEL = "__NO_RULES__";
+const DEFAULT_PASSWORD_LENGTH = 16;
 
 type PasswordOptions = {
   uppercase: boolean;
@@ -31,9 +33,17 @@ type PasswordOptions = {
 };
 
 type StrengthLevel = {
-  level: "veryWeak" | "weak" | "medium" | "strong" | "veryStrong";
+  level: "weak" | "fair" | "good" | "strong";
   score: number;
   color: string;
+  bars: number;
+};
+
+const DEFAULT_PASSWORD_OPTIONS: PasswordOptions = {
+  uppercase: true,
+  lowercase: true,
+  numbers: true,
+  symbols: true,
 };
 
 const CHARSETS = {
@@ -85,37 +95,31 @@ function buildPassword(length: number, options: PasswordOptions) {
 
 function calculateStrength(password: string): StrengthLevel {
   if (password === NO_RULES_SENTINEL) {
-    return { level: "veryWeak", score: 6, color: "#ff4f65" };
+    return { level: "weak", score: 0, color: "#ff4f65", bars: 1 };
   }
 
   let score = 0;
-
-  if (password.length >= 8) score += 20;
+  if (password.length >= 6) score += 15;
+  if (password.length >= 8) score += 15;
   if (password.length >= 12) score += 20;
   if (password.length >= 16) score += 20;
   if (/[A-Z]/.test(password)) score += 10;
   if (/[a-z]/.test(password)) score += 10;
   if (/\d/.test(password)) score += 10;
   if (/[^A-Za-z0-9]/.test(password)) score += 10;
-  if (password.length >= 20) score += 10;
 
   const normalized = Math.min(score, 100);
 
-  if (normalized >= 90 && password.length >= 16) {
-    return { level: "veryStrong", score: normalized, color: "#52f8ff" };
+  if (normalized >= 90) {
+    return { level: "strong", score: normalized, color: "#2af5b3", bars: 4 };
   }
-
-  if (normalized >= 75) {
-    return { level: "strong", score: normalized, color: "#2af5b3" };
+  if (normalized >= 60) {
+    return { level: "good", score: normalized, color: "#52f8ff", bars: 3 };
   }
-  if (normalized >= 45) {
-    return { level: "medium", score: normalized, color: "#ffc96b" };
+  if (normalized >= 30) {
+    return { level: "fair", score: normalized, color: "#ffc96b", bars: 2 };
   }
-  if (normalized >= 25) {
-    return { level: "weak", score: normalized, color: "#ff8a7a" };
-  }
-
-  return { level: "veryWeak", score: normalized, color: "#ff4f65" };
+  return { level: "weak", score: normalized, color: "#ff8a7a", bars: 1 };
 }
 
 async function warmupSound(sound: Audio.Sound) {
@@ -126,7 +130,7 @@ async function warmupSound(sound: Audio.Sound) {
     await sound.setPositionAsync(0);
     await sound.setStatusAsync({ volume: 1 });
   } catch {
-    // Warmup baÅŸarÄ±sÄ±z olsa da normal kullanÄ±m devam eder.
+    // ignore
   }
 }
 
@@ -134,11 +138,13 @@ export default function HomeScreen() {
   const { strings } = getI18n();
   const insets = useSafeAreaInsets();
   const buttonScale = useRef(new Animated.Value(1)).current;
+  const outputScale = useRef(new Animated.Value(1)).current;
   const buttonGlow = useRef(new Animated.Value(0)).current;
-  const passwordPulse = useRef(new Animated.Value(1)).current;
   const copyToastOpacity = useRef(new Animated.Value(0)).current;
-  const typingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const saveResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clipboardClearTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const sounds = useRef<{
     success: Audio.Sound | null;
     strong: Audio.Sound | null;
@@ -155,13 +161,17 @@ export default function HomeScreen() {
 
   const { addGeneratedPassword, savePassword } = usePasswordStore();
 
-  const [passwordLength, setPasswordLength] = useState(12);
-  const [password, setPassword] = useState(strings.home.initialPassword);
+  const initialGeneratedPassword = useMemo(
+    () => buildPassword(DEFAULT_PASSWORD_LENGTH, DEFAULT_PASSWORD_OPTIONS),
+    [],
+  );
+  const [passwordLength, setPasswordLength] = useState(DEFAULT_PASSWORD_LENGTH);
+  const [password, setPassword] = useState(initialGeneratedPassword);
   const [animatedPassword, setAnimatedPassword] = useState(
-    strings.home.initialPassword,
+    initialGeneratedPassword,
   );
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hasGenerated, setHasGenerated] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(true);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isCopyingPassword, setIsCopyingPassword] = useState(false);
   const [copyText, setCopyText] = useState(strings.common.copy);
@@ -177,10 +187,11 @@ export default function HomeScreen() {
     symbols: true,
   });
 
-  const enabledCount = useMemo(
-    () => Object.values(options).filter(Boolean).length,
-    [options],
-  );
+  const visiblePassword =
+    animatedPassword === NO_RULES_SENTINEL
+      ? strings.home.noRulesError
+      : animatedPassword;
+
   const strength = useMemo(() => calculateStrength(password), [password]);
 
   useEffect(() => {
@@ -207,11 +218,11 @@ export default function HomeScreen() {
 
   useEffect(() => {
     return () => {
-      if (typingTimer.current) {
-        clearInterval(typingTimer.current);
-      }
       if (saveResetTimer.current) {
         clearTimeout(saveResetTimer.current);
+      }
+      if (clipboardClearTimer.current) {
+        clearTimeout(clipboardClearTimer.current);
       }
       void Promise.all(
         Object.values(sounds.current)
@@ -320,32 +331,8 @@ export default function HomeScreen() {
     try {
       await sound.replayAsync();
     } catch {
-      // Sessizce devam et: ses Ã§almazsa Ã¼retim akÄ±ÅŸÄ±nÄ± bozmayalÄ±m.
+      // ignore
     }
-  };
-
-  const revealPassword = (nextPassword: string) => {
-    if (typingTimer.current) {
-      clearInterval(typingTimer.current);
-    }
-
-    setAnimatedPassword("");
-    setIsGenerating(true);
-
-    let index = 0;
-    typingTimer.current = setInterval(() => {
-      index += 1;
-      setAnimatedPassword(nextPassword.slice(0, index));
-
-      if (index >= nextPassword.length) {
-        if (typingTimer.current) {
-          clearInterval(typingTimer.current);
-          typingTimer.current = null;
-        }
-        setIsGenerating(false);
-        generateLockRef.current = false;
-      }
-    }, 28);
   };
 
   const toggleOption = async (key: keyof PasswordOptions) => {
@@ -371,63 +358,66 @@ export default function HomeScreen() {
 
     generateLockRef.current = true;
     setIsGenerating(true);
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const generated = buildPassword(passwordLength, options);
-    const generatedStrength = calculateStrength(generated);
+      const generated = buildPassword(passwordLength, options);
+      const generatedStrength = calculateStrength(generated);
 
-    if (generated === NO_RULES_SENTINEL) {
-      void playSound("error");
-    } else if (
-      generatedStrength.level === "strong" ||
-      generatedStrength.level === "veryStrong"
-    ) {
-      void playSound("strong");
-    } else {
-      void playSound("success");
+      if (generated === NO_RULES_SENTINEL) {
+        void playSound("error");
+      } else if (generatedStrength.level === "strong") {
+        void playSound("strong");
+      } else {
+        void playSound("success");
+      }
+
+      setPassword(generated);
+      setAnimatedPassword(generated);
+
+      buttonScale.setValue(1);
+      outputScale.setValue(1);
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(buttonScale, {
+            toValue: 0.97,
+            duration: 60,
+            useNativeDriver: true,
+          }),
+          Animated.timing(buttonScale, {
+            toValue: 1,
+            duration: 110,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.timing(outputScale, {
+            toValue: 0.985,
+            duration: 70,
+            useNativeDriver: true,
+          }),
+          Animated.timing(outputScale, {
+            toValue: 1,
+            duration: 120,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+
+      if (generated === NO_RULES_SENTINEL) {
+        setHasGenerated(false);
+        return;
+      }
+
+      setHasGenerated(true);
+      addGeneratedPassword(generated);
+      setSaveText(strings.common.save);
+    } finally {
+      setIsGenerating(false);
+      generateLockRef.current = false;
     }
-
-    Animated.parallel([
-      Animated.sequence([
-        Animated.timing(buttonScale, {
-          toValue: 0.94,
-          duration: 110,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: false,
-        }),
-        Animated.spring(buttonScale, {
-          toValue: 1,
-          friction: 4,
-          tension: 180,
-          useNativeDriver: false,
-        }),
-      ]),
-      Animated.sequence([
-        Animated.timing(passwordPulse, {
-          toValue: 0.95,
-          duration: 90,
-          useNativeDriver: true,
-        }),
-        Animated.spring(passwordPulse, {
-          toValue: 1,
-          friction: 5,
-          tension: 180,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-
-    setPassword(generated);
-    revealPassword(generated);
-
-    if (generated === NO_RULES_SENTINEL) {
-      setHasGenerated(false);
-      return;
-    }
-
-    setHasGenerated(true);
-    addGeneratedPassword(generated);
-    setSaveText(strings.common.save);
   };
 
   const onSavePassword = async () => {
@@ -477,6 +467,13 @@ export default function HomeScreen() {
     await Clipboard.setStringAsync(password);
 
     setCopyText(strings.common.copied);
+    if (clipboardClearTimer.current) {
+      clearTimeout(clipboardClearTimer.current);
+    }
+    clipboardClearTimer.current = setTimeout(() => {
+      void Clipboard.setStringAsync("");
+      clipboardClearTimer.current = null;
+    }, 60000);
     Animated.sequence([
       Animated.timing(copyToastOpacity, {
         toValue: 1,
@@ -496,24 +493,6 @@ export default function HomeScreen() {
     });
   };
 
-  const strengthLabel =
-    strength.level === "veryStrong"
-      ? strings.home.strengthVeryStrong
-      : strength.level === "veryWeak"
-        ? strings.home.strengthVeryWeak
-        : strength.level === "strong"
-          ? strings.home.strengthStrong
-          : strength.level === "medium"
-            ? strings.home.strengthMedium
-            : strings.home.strengthWeak;
-  const strengthText = hasGenerated
-    ? `${strings.home.strength}: ${strengthLabel}`
-    : `${strings.home.strength}: `;
-  const visibleStrengthScore = hasGenerated ? strength.score : 0;
-  const visiblePassword =
-    animatedPassword === NO_RULES_SENTINEL
-      ? strings.home.noRulesError
-      : animatedPassword;
   const shouldWrapPassword = hasGenerated && visiblePassword.length >= 28;
 
   const glowColor = buttonGlow.interpolate({
@@ -541,40 +520,17 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         scrollIndicatorInsets={{ bottom: Math.max(110, 88 + insets.bottom) }}
       >
-        <Text style={styles.header}>{strings.home.title}</Text>
+        <View style={styles.heroBlock}>
+          <Text style={styles.header}>{strings.home.title}</Text>
+          <Text style={styles.subHeader}>{strings.home.subtitle}</Text>
+        </View>
 
         <Animated.View
-          style={[
-            styles.passwordCard,
-            { transform: [{ scale: passwordPulse }] },
-          ]}
+          style={[styles.outputCard, { transform: [{ scale: outputScale }] }]}
         >
-          <View style={styles.passwordHeaderRow}>
-            <Text style={styles.passwordLabel}>
-              {strings.home.passwordLabel}
-            </Text>
-            <View style={styles.actionButtonsWrap}>
-              <Pressable
-                style={styles.copyButton}
-                disabled={isCopyingPassword || !hasGenerated}
-                onPress={() => {
-                  void onCopyPassword();
-                }}
-              >
-                <Text style={styles.copyButtonText}>{copyText}</Text>
-              </Pressable>
-              <Pressable
-                style={styles.saveButton}
-                disabled={isSavingPassword || !hasGenerated}
-                onPress={() => {
-                  void onSavePassword();
-                }}
-              >
-                <Text style={styles.saveButtonText}>{saveText}</Text>
-              </Pressable>
-            </View>
-          </View>
-          <Text
+          <Text style={styles.outputLabel}>{strings.home.outputLabel}</Text>
+
+          <Animated.Text
             style={[
               styles.passwordText,
               shouldWrapPassword && styles.passwordTextMultiline,
@@ -584,22 +540,73 @@ export default function HomeScreen() {
             minimumFontScale={0.68}
           >
             {visiblePassword || "..."}
-          </Text>
+          </Animated.Text>
+
           <View style={styles.strengthWrap}>
-            <View style={styles.strengthTrack}>
-              <View
-                style={[
-                  styles.strengthFill,
-                  {
-                    width: `${visibleStrengthScore}%`,
-                    backgroundColor: strength.color,
-                  },
-                ]}
-              />
+            <View style={styles.strengthSegments}>
+              {Array.from({ length: 4 }).map((_, index) => {
+                const filled = index < strength.bars;
+                return (
+                  <View
+                    key={`segment-${index}`}
+                    style={[
+                      styles.strengthSegment,
+                      filled && [
+                        styles.strengthSegmentFilled,
+                        { backgroundColor: strength.color },
+                      ],
+                    ]}
+                  />
+                );
+              })}
             </View>
             <Text style={[styles.strengthText, { color: strength.color }]}>
-              {strengthText}
+              {strength.level === "weak"
+                ? strings.home.strengthWeak
+                : strength.level === "fair"
+                  ? strings.home.strengthFair
+                  : strength.level === "good"
+                    ? strings.home.strengthGood
+                    : strings.home.strengthStrong}
             </Text>
+          </View>
+
+          <View style={styles.outputActionRow}>
+            <Pressable
+              style={styles.outputActionButton}
+              disabled={isCopyingPassword || !hasGenerated}
+              onPress={() => {
+                void onCopyPassword();
+              }}
+            >
+              <MaterialCommunityIcons
+                name="content-copy"
+                size={18}
+                color="#14dff0"
+              />
+              <Text style={[styles.outputActionText, styles.copyAccent]}>
+                {copyText.toUpperCase()}
+              </Text>
+            </Pressable>
+
+            <View style={styles.outputDivider} />
+
+            <Pressable
+              style={styles.outputActionButton}
+              disabled={isSavingPassword || !hasGenerated}
+              onPress={() => {
+                void onSavePassword();
+              }}
+            >
+              <MaterialCommunityIcons
+                name="bookmark-outline"
+                size={18}
+                color="#23ef77"
+              />
+              <Text style={[styles.outputActionText, styles.saveAccent]}>
+                {saveText.toUpperCase()}
+              </Text>
+            </Pressable>
           </View>
           <Animated.View
             style={[styles.copyToast, { opacity: copyToastOpacity }]}
@@ -610,11 +617,11 @@ export default function HomeScreen() {
 
         <Animated.View
           style={[
-            styles.buttonOuter,
+            styles.generateOuter,
             {
-              shadowColor: "#36e8c4",
-              shadowOpacity: 0.9,
-              shadowRadius: 18,
+              shadowColor: "#1eff55",
+              shadowOpacity: 0.8,
+              shadowRadius: 16,
               shadowOffset: { width: 0, height: 0 },
               backgroundColor: glowColor,
               transform: [{ scale: buttonScale }],
@@ -629,6 +636,7 @@ export default function HomeScreen() {
                   styles.androidGlow,
                   {
                     opacity: androidGlowOpacity,
+                    backgroundColor: glowColor,
                     transform: [{ scale: androidGlowScale }],
                   },
                 ]}
@@ -639,6 +647,7 @@ export default function HomeScreen() {
                   styles.androidGlowInner,
                   {
                     opacity: androidGlowOpacity,
+                    backgroundColor: glowColor,
                   },
                 ]}
               />
@@ -651,83 +660,30 @@ export default function HomeScreen() {
             }}
             disabled={isGenerating}
           >
+            <MaterialCommunityIcons
+              name="lightning-bolt"
+              size={26}
+              color="#1bff61"
+            />
             <Text style={styles.generateButtonText}>
-              {isGenerating ? strings.home.generating : strings.home.generate}
+              {strings.home.generate.toUpperCase()}
             </Text>
           </Pressable>
         </Animated.View>
 
         <View style={styles.optionsCard}>
-          <Text style={styles.sectionTitle}>{strings.home.passwordRules}</Text>
-
-          <View style={styles.optionRow}>
-            <Text style={styles.optionText}>{strings.home.uppercase}</Text>
-            <Switch
-              style={styles.ruleSwitch}
-              value={options.uppercase}
-              onValueChange={() => {
-                void toggleOption("uppercase");
-              }}
-              trackColor={{ false: "#2d3848", true: "#18e7c6" }}
-              thumbColor="#dffbf4"
-            />
-          </View>
-
-          <View style={styles.optionRow}>
-            <Text style={styles.optionText}>{strings.home.lowercase}</Text>
-            <Switch
-              style={styles.ruleSwitch}
-              value={options.lowercase}
-              onValueChange={() => {
-                void toggleOption("lowercase");
-              }}
-              trackColor={{ false: "#2d3848", true: "#18e7c6" }}
-              thumbColor="#dffbf4"
-            />
-          </View>
-
-          <View style={styles.optionRow}>
-            <Text style={styles.optionText}>{strings.home.numbers}</Text>
-            <Switch
-              style={styles.ruleSwitch}
-              value={options.numbers}
-              onValueChange={() => {
-                void toggleOption("numbers");
-              }}
-              trackColor={{ false: "#2d3848", true: "#18e7c6" }}
-              thumbColor="#dffbf4"
-            />
-          </View>
-
-          <View style={styles.optionRow}>
-            <Text style={styles.optionText}>{strings.home.symbols}</Text>
-            <Switch
-              style={styles.ruleSwitch}
-              value={options.symbols}
-              onValueChange={() => {
-                void toggleOption("symbols");
-              }}
-              trackColor={{ false: "#2d3848", true: "#18e7c6" }}
-              thumbColor="#dffbf4"
-            />
-          </View>
-
-          <View style={styles.ruleSummary}>
-            <Text style={styles.ruleSummaryText}>
-              {strings.home.activeRules(enabledCount)}
+          <View style={styles.rulesHeaderRow}>
+            <Text style={styles.sectionTitle}>
+              {strings.home.passwordRules}
             </Text>
+            <View style={styles.lengthBadge}>
+              <Text
+                style={styles.lengthBadgeText}
+              >{`LEN ${passwordLength}`}</Text>
+            </View>
           </View>
 
           <View style={styles.lengthRow}>
-            <View style={styles.lengthHeaderRow}>
-              <Text style={styles.optionText}>{strings.home.length}</Text>
-              <View style={styles.lengthBadge}>
-                <Text
-                  style={styles.lengthBadgeText}
-                >{`${passwordLength}`}</Text>
-              </View>
-            </View>
-
             <View style={styles.lengthSliderRow}>
               <View style={styles.sliderOuterGlow}>
                 <View style={styles.lengthSliderWrap}>
@@ -782,6 +738,80 @@ export default function HomeScreen() {
               </View>
             </View>
           </View>
+
+          <View style={styles.rulesGrid}>
+            <Pressable
+              style={styles.ruleTile}
+              onPress={() => {
+                void toggleOption("uppercase");
+              }}
+            >
+              <Text style={styles.ruleTileText}>{strings.home.uppercase}</Text>
+              <Switch
+                style={styles.ruleSwitch}
+                value={options.uppercase}
+                onValueChange={() => {
+                  void toggleOption("uppercase");
+                }}
+                trackColor={{ false: "#2d3848", true: "#18e7c6" }}
+                thumbColor="#dffbf4"
+              />
+            </Pressable>
+
+            <Pressable
+              style={styles.ruleTile}
+              onPress={() => {
+                void toggleOption("lowercase");
+              }}
+            >
+              <Text style={styles.ruleTileText}>{strings.home.lowercase}</Text>
+              <Switch
+                style={styles.ruleSwitch}
+                value={options.lowercase}
+                onValueChange={() => {
+                  void toggleOption("lowercase");
+                }}
+                trackColor={{ false: "#2d3848", true: "#18e7c6" }}
+                thumbColor="#dffbf4"
+              />
+            </Pressable>
+
+            <Pressable
+              style={styles.ruleTile}
+              onPress={() => {
+                void toggleOption("numbers");
+              }}
+            >
+              <Text style={styles.ruleTileText}>{strings.home.numbers}</Text>
+              <Switch
+                style={styles.ruleSwitch}
+                value={options.numbers}
+                onValueChange={() => {
+                  void toggleOption("numbers");
+                }}
+                trackColor={{ false: "#2d3848", true: "#18e7c6" }}
+                thumbColor="#dffbf4"
+              />
+            </Pressable>
+
+            <Pressable
+              style={styles.ruleTile}
+              onPress={() => {
+                void toggleOption("symbols");
+              }}
+            >
+              <Text style={styles.ruleTileText}>{strings.home.symbols}</Text>
+              <Switch
+                style={styles.ruleSwitch}
+                value={options.symbols}
+                onValueChange={() => {
+                  void toggleOption("symbols");
+                }}
+                trackColor={{ false: "#2d3848", true: "#18e7c6" }}
+                thumbColor="#dffbf4"
+              />
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -795,9 +825,9 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 18,
-    paddingTop: 42,
+    paddingTop: 54,
     paddingBottom: 32,
-    gap: 10,
+    gap: 8,
   },
   bgOrbTop: {
     position: "absolute",
@@ -818,111 +848,93 @@ const styles = StyleSheet.create({
     left: -60,
   },
   header: {
-    color: "#d5f6ef",
+    color: "#f7fbff",
     textAlign: "center",
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: "800",
-    letterSpacing: 1,
-    marginBottom: 10,
+    letterSpacing: 2,
   },
-  passwordCard: {
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: "rgba(84, 255, 224, 0.45)",
-    backgroundColor: "rgba(4, 20, 34, 0.92)",
-  },
-  passwordLabel: {
-    color: "#77d9c9",
+  subHeader: {
+    marginTop: 4,
+    color: "#14dff0",
     fontSize: 13,
-    marginBottom: 0,
-    marginRight: 6,
-    minWidth: 86,
-    flexShrink: 0,
-    letterSpacing: 1,
+    fontWeight: "800",
+    letterSpacing: 2.4,
+    textAlign: "center",
   },
-  passwordHeaderRow: {
-    flexDirection: "row",
+  heroBlock: {
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 12,
   },
-  copyButton: {
-    borderRadius: 999,
+  outputCard: {
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 4,
     borderWidth: 1,
-    borderColor: "rgba(127, 251, 226, 0.65)",
-    backgroundColor: "rgba(24, 232, 198, 0.16)",
-    paddingHorizontal: Platform.OS === "android" ? 11 : 16,
-    paddingVertical: Platform.OS === "android" ? 6 : 8,
+    borderColor: "rgba(17, 228, 250, 0.38)",
+    backgroundColor: "#171722",
+    shadowColor: "#11e4fa",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
   },
-  actionButtonsWrap: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    alignSelf: "auto",
-    flexShrink: 0,
-    gap: Platform.OS === "android" ? 8 : 12,
-    flexWrap: "nowrap",
-    marginTop: 0,
-    marginLeft: 6,
-  },
-  copyButtonText: {
-    color: "#d8fff8",
-    fontSize: Platform.OS === "android" ? 13 : 14,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-  },
-  saveButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(103, 204, 255, 0.65)",
-    backgroundColor: "rgba(64, 144, 245, 0.2)",
-    paddingHorizontal: Platform.OS === "android" ? 11 : 16,
-    paddingVertical: Platform.OS === "android" ? 6 : 8,
-  },
-  saveButtonText: {
-    color: "#deefff",
-    fontSize: Platform.OS === "android" ? 13 : 14,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+  outputLabel: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 3.8,
+    marginBottom: 12,
   },
   passwordText: {
     color: "#f2fffc",
     fontSize: 24,
-    fontWeight: "700",
-    textAlign: "center",
-    marginTop: 8,
+    fontWeight: "900",
+    textAlign: "left",
+    marginTop: 0,
+    letterSpacing: 0.2,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    textShadowColor: "rgba(255,255,255,0.12)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   passwordTextMultiline: {
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 20,
+    lineHeight: 24,
     textAlign: "left",
     paddingHorizontal: 6,
   },
   strengthWrap: {
-    marginTop: 16,
-    gap: 7,
+    marginTop: 18,
+    gap: 8,
   },
-  strengthTrack: {
-    height: 7,
-    width: "100%",
-    borderRadius: 999,
-    overflow: "hidden",
-    backgroundColor: "rgba(226, 238, 255, 0.16)",
+  strengthSegments: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
   },
-  strengthFill: {
-    height: "100%",
+  strengthSegment: {
+    flex: 1,
+    height: 9,
     borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  strengthSegmentFilled: {
+    shadowOpacity: 0,
   },
   strengthText: {
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.6,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 2.4,
     textTransform: "uppercase",
+    textAlign: "right",
   },
   copyToast: {
-    marginTop: 8,
-    alignSelf: "center",
+    marginTop: 12,
+    alignSelf: "flex-start",
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "rgba(94, 248, 221, 0.5)",
@@ -936,10 +948,47 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
   },
-  buttonOuter: {
+  outputActionRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+    paddingTop: 8,
+    paddingBottom: 0,
+  },
+  outputActionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 2,
+  },
+  outputActionText: {
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1.8,
+  },
+  copyAccent: {
+    color: "#12ddef",
+  },
+  saveAccent: {
+    color: "#18f370",
+  },
+  newAccent: {
+    color: "#ffd53a",
+  },
+  outputDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  generateOuter: {
     marginTop: 2,
     marginBottom: 6,
-    borderRadius: 30,
+    borderRadius: 18,
     padding: 2,
     position: "relative",
     overflow: "visible",
@@ -950,7 +999,7 @@ const styles = StyleSheet.create({
     left: -5,
     right: -5,
     bottom: -9,
-    borderRadius: 34,
+    borderRadius: 18,
     backgroundColor: "rgba(56, 255, 217, 0.24)",
     borderWidth: 1,
     borderColor: "rgba(56, 255, 217, 0.5)",
@@ -962,81 +1011,103 @@ const styles = StyleSheet.create({
     left: -2,
     right: -2,
     bottom: -4,
-    borderRadius: 31,
+    borderRadius: 18,
     backgroundColor: "rgba(56, 255, 217, 0.14)",
     borderWidth: 1,
     borderColor: "rgba(56, 255, 217, 0.38)",
     elevation: 5,
   },
   generateButton: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 28,
-    paddingVertical: 16,
-    backgroundColor: "#0f334f",
-    borderWidth: 1,
-    borderColor: "#38ffd9",
+    gap: 8,
+    borderRadius: 18,
+    paddingVertical: 12,
+    backgroundColor: "#0f1d12",
+    borderWidth: 2,
+    borderColor: "#1bff61",
   },
   generateButtonText: {
-    color: "#dffcf5",
-    fontSize: 18,
+    color: "#1bff61",
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 0.8,
+    letterSpacing: 2.4,
   },
   optionsCard: {
-    borderRadius: 22,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(116, 167, 255, 0.4)",
-    backgroundColor: "rgba(8, 25, 42, 0.9)",
-    paddingHorizontal: 16,
+    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(16, 16, 22, 0.96)",
+    paddingHorizontal: 10,
     paddingVertical: 10,
-    gap: Platform.OS === "ios" ? 8 : 4,
+    gap: 6,
   },
   sectionTitle: {
-    color: "#c5d9ff",
-    fontSize: 17,
+    color: "#f7fbff",
+    fontSize: 14,
     fontWeight: Platform.OS === "ios" ? "700" : "800",
-    letterSpacing: Platform.OS === "ios" ? 0 : 0.25,
-    marginBottom: 2,
+    letterSpacing: Platform.OS === "ios" ? 0 : 2,
+    marginBottom: 0,
   },
-  optionRow: {
+  rulesHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: Platform.OS === "ios" ? 6 : 2,
+    marginBottom: 4,
   },
-  optionText: {
-    color: "#ecf8ff",
-    fontSize: 16,
-    fontWeight: Platform.OS === "ios" ? "600" : "700",
-    letterSpacing: Platform.OS === "ios" ? 0 : 0.2,
+  rulesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  ruleTile: {
+    width: "48.5%",
+    minHeight: 56,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(15, 194, 229, 0.5)",
+    backgroundColor: "rgba(10, 23, 34, 0.9)",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
+  },
+  ruleTileText: {
+    flex: 1,
+    color: "#f7fbff",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1.4,
   },
   ruleSwitch: {
     transform:
       Platform.OS === "android"
-        ? [{ scaleX: 1.14 }, { scaleY: 1.14 }]
-        : [{ scaleX: 1 }, { scaleY: 1 }],
+        ? [{ scaleX: 0.95 }, { scaleY: 0.95 }]
+        : [{ scaleX: 0.95 }, { scaleY: 0.95 }],
     marginLeft: Platform.OS === "android" ? 0 : 0,
   },
   ruleSummary: {
-    marginTop: 3,
+    marginTop: 2,
     alignSelf: "flex-start",
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: "rgba(24, 232, 198, 0.14)",
+    backgroundColor: "rgba(24, 232, 198, 0.12)",
     borderWidth: 1,
-    borderColor: "rgba(24, 232, 198, 0.4)",
+    borderColor: "rgba(24, 232, 198, 0.35)",
   },
   ruleSummaryText: {
     color: "#86ffe8",
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "700",
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   lengthRow: {
-    marginTop: 6,
-    gap: 9,
+    marginTop: 0,
+    gap: 4,
   },
   lengthHeaderRow: {
     flexDirection: "row",
@@ -1046,16 +1117,16 @@ const styles = StyleSheet.create({
   lengthBadge: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(83, 255, 227, 0.5)",
-    backgroundColor: "rgba(26, 239, 204, 0.16)",
-    paddingHorizontal: 11,
+    borderColor: "rgba(17, 228, 250, 0.4)",
+    backgroundColor: "rgba(17, 228, 250, 0.12)",
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
   lengthBadgeText: {
-    color: "#8efde8",
-    fontSize: 12,
+    color: "#86e8ff",
+    fontSize: 10,
     fontWeight: "800",
-    letterSpacing: 0.35,
+    letterSpacing: 0.6,
   },
   lengthSliderRow: {
     flexDirection: "row",
@@ -1065,46 +1136,46 @@ const styles = StyleSheet.create({
   sliderOuterGlow: {
     flex: 1,
     borderRadius: 999,
-    paddingVertical: 3,
+    paddingVertical: 2,
     paddingHorizontal: 4,
-    backgroundColor: "rgba(63, 255, 228, 0.12)",
+    backgroundColor: "rgba(17, 228, 250, 0.08)",
     borderWidth: 1,
-    borderColor: "rgba(63, 255, 228, 0.3)",
+    borderColor: "rgba(17, 228, 250, 0.26)",
     shadowColor: "#52f8ff",
-    shadowOpacity: 0.55,
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
+    elevation: 3,
   },
   lengthSliderTrack: {
     width: "100%",
     height: 24,
-    transform: Platform.OS === "android" ? [{ scaleY: 1.1 }] : undefined,
+    transform: Platform.OS === "android" ? [{ scaleY: 1 }] : undefined,
   },
   lengthSliderWrap: {
     position: "relative",
     justifyContent: "center",
     width: "100%",
-    minHeight: 28,
+    minHeight: 18,
   },
   lengthButtonsInline: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
   },
   lengthButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(127, 251, 226, 0.65)",
-    backgroundColor: "rgba(24, 232, 198, 0.16)",
+    borderColor: "rgba(17, 228, 250, 0.42)",
+    backgroundColor: "rgba(17, 228, 250, 0.08)",
   },
   lengthButtonText: {
-    color: "#d8fff8",
-    fontSize: 17,
+    color: "#f7fbff",
+    fontSize: 18,
     lineHeight: 20,
     fontWeight: "700",
   },

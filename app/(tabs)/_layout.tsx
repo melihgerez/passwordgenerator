@@ -77,16 +77,15 @@ function FuturisticTabBar({ state, navigation }: BottomTabBarProps) {
   }, [indicatorX, itemWidth, state.index]);
 
   return (
-    <View
-      style={[
-        styles.tabBarWrap,
-        {
-          bottom: Math.max(insets.bottom + 4, 8),
-        },
-      ]}
-    >
+    <View style={styles.tabBarWrap}>
       <View
-        style={styles.tabBar}
+        style={[
+          styles.tabBar,
+          {
+            height: 60 + insets.bottom,
+            paddingBottom: insets.bottom,
+          },
+        ]}
         onLayout={(event) => {
           setBarWidth(event.nativeEvent.layout.width);
         }}
@@ -98,6 +97,7 @@ function FuturisticTabBar({ state, navigation }: BottomTabBarProps) {
               styles.activeTrack,
               {
                 width: itemWidth,
+                bottom: 7 + insets.bottom,
                 transform: [{ translateX: indicatorX }],
               },
             ]}
@@ -176,12 +176,16 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBarWrap: {
     position: "absolute",
-    left: 12,
-    right: 12,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   tabBar: {
     height: 60,
-    borderRadius: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     borderTopWidth: 0,
     backgroundColor: "rgba(7, 21, 36, 0.94)",
     borderWidth: 1,

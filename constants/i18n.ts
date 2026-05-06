@@ -16,11 +16,15 @@ export type AppStrings = {
     cancel: string;
     copy: string;
     copied: string;
+    show: string;
+    hide: string;
   };
   home: {
     title: string;
+    subtitle: string;
     initialPassword: string;
     passwordLabel: string;
+    outputLabel: string;
     strength: string;
     generate: string;
     generating: string;
@@ -33,11 +37,13 @@ export type AppStrings = {
     activeRules: (count: number) => string;
     copiedToast: string;
     noRulesError: string;
-    strengthVeryWeak: string;
+    copy: string;
+    save: string;
+    newPassword: string;
     strengthWeak: string;
-    strengthMedium: string;
+    strengthFair: string;
+    strengthGood: string;
     strengthStrong: string;
-    strengthVeryStrong: string;
   };
   recent: {
     title: string;
@@ -73,32 +79,38 @@ const strings: Record<AppLocale, AppStrings> = {
       cancel: "İptal",
       copy: "Kopyala",
       copied: "Kopyalandı",
+      show: "Göster",
+      hide: "Gizle",
     },
     home: {
-      title: "PassGen Generator",
-      initialPassword: "Parolanız",
+      title: "PASSGEN GENERATOR",
+      subtitle: "Your personal password generator",
+      initialPassword: "",
       passwordLabel: "Özel Anahtar",
+      outputLabel: "ÇIKTI",
       strength: "Güç",
-      generate: "Parola Üret",
+      generate: "Üret",
       generating: "Üretiliyor...",
       passwordRules: "Parola Kuralları",
-      uppercase: "Büyük Harf",
-      lowercase: "Küçük Harf",
-      numbers: "Sayı",
-      symbols: "Sembol",
+      uppercase: "A-Z UPPER",
+      lowercase: "a-z LOWER",
+      numbers: "0-9 NUMS",
+      symbols: "!@# SYMS",
       length: "Karakter Uzunluğu",
       activeRules: (count) => `${count} kural aktif`,
       copiedToast: "Panoya kopyalandı",
       noRulesError: "En az bir kategori seç",
-      strengthVeryWeak: "Çok Zayıf",
-      strengthWeak: "Zayıf",
-      strengthMedium: "Orta",
-      strengthStrong: "Güçlü",
-      strengthVeryStrong: "Çok Güçlü",
+      copy: "KOPYALA",
+      save: "KAYDET",
+      newPassword: "YENİ",
+      strengthWeak: "WEAK",
+      strengthFair: "FAIR",
+      strengthGood: "GOOD",
+      strengthStrong: "STRONG",
     },
     recent: {
       title: "Son Kayıtlar",
-      subtitle: "Maksimum 30 kayıt tutulur",
+      subtitle: "Maksimum 15 kayıt tutulur",
       clearAll: "Hepsini Sil",
       emptyTitle: "Henüz kayıt yok",
       emptyText: "Ana Menü sayfasında şifre üretince burada görünecek.",
@@ -108,7 +120,7 @@ const strings: Record<AppLocale, AppStrings> = {
     },
     saved: {
       title: "Kaydedilenler",
-      subtitle: "Maksimum 30 kayıt tutulur",
+      subtitle: "Maksimum 20 kayıt tutulur",
       emptyTitle: "Henüz kaydedilen yok",
       emptyText:
         "Ana Menüde şifreyi ürettikten sonra Kaydet ile buraya eklenir.",
@@ -130,32 +142,38 @@ const strings: Record<AppLocale, AppStrings> = {
       cancel: "Cancel",
       copy: "Copy",
       copied: "Copied",
+      show: "Show",
+      hide: "Hide",
     },
     home: {
-      title: "PassGen Generator",
-      initialPassword: "Your Password",
+      title: "PASSGEN GENERATOR",
+      subtitle: "Your personal password generator",
+      initialPassword: "",
       passwordLabel: "Secret Key",
+      outputLabel: "OUTPUT",
       strength: "Strength",
-      generate: "Generate Password",
+      generate: "Generate",
       generating: "Generating...",
       passwordRules: "Password Rules",
-      uppercase: "Uppercase",
-      lowercase: "Lowercase",
-      numbers: "Numbers",
-      symbols: "Symbols",
-      length: "Length",
+      uppercase: "A-Z UPPER",
+      lowercase: "a-z LOWER",
+      numbers: "0-9 NUMS",
+      symbols: "!@# SYMS",
+      length: "Character Length",
       activeRules: (count) => `${count} rules enabled`,
       copiedToast: "Copied to clipboard",
       noRulesError: "Select at least one category",
-      strengthVeryWeak: "Very Weak",
-      strengthWeak: "Weak",
-      strengthMedium: "Medium",
-      strengthStrong: "Strong",
-      strengthVeryStrong: "Very Strong",
+      copy: "COPY",
+      save: "SAVE",
+      newPassword: "NEW",
+      strengthWeak: "WEAK",
+      strengthFair: "FAIR",
+      strengthGood: "GOOD",
+      strengthStrong: "STRONG",
     },
     recent: {
       title: "Recent",
-      subtitle: "Up to 30 entries are stored",
+      subtitle: "Up to 15 entries are stored",
       clearAll: "Delete All",
       emptyTitle: "No records yet",
       emptyText: "Generated passwords will appear here from the Home screen.",
@@ -165,7 +183,7 @@ const strings: Record<AppLocale, AppStrings> = {
     },
     saved: {
       title: "Saved Passwords",
-      subtitle: "Up to 30 entries are stored",
+      subtitle: "Up to 20 entries are stored",
       emptyTitle: "No saved passwords yet",
       emptyText: "Save a generated password from Home to see it here.",
       recordPlaceholder: (index) => `Record ${index}`,

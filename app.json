@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "allowBackup": false,
       "adaptiveIcon": {
         "backgroundColor": "#0A1022",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -46,7 +47,8 @@
           "faceIDPermission": "Uygulamaya güvenli giriş için Face ID kullanılır."
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

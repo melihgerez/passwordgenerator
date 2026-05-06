@@ -17,6 +17,35 @@ import { DeleteConfirmBubble } from "@/components/ui/delete-confirm-bubble";
 import { getI18n } from "@/constants/i18n";
 import { usePasswordStore } from "@/contexts/password-store";
 
+const HIDDEN_PASSWORD = "••••••••••••";
+const SAVED_LIMIT = 20;
+
+function getStrengthColor(password: string) {
+  let score = 0;
+  if (password.length >= 6) score += 15;
+  if (password.length >= 8) score += 15;
+  if (password.length >= 12) score += 20;
+  if (password.length >= 16) score += 20;
+  if (/[A-Z]/.test(password)) score += 10;
+  if (/[a-z]/.test(password)) score += 10;
+  if (/\d/.test(password)) score += 10;
+  if (/[^A-Za-z0-9]/.test(password)) score += 10;
+
+  if (score >= 90) {
+    return "#2af5b3";
+  }
+
+  if (score >= 60) {
+    return "#52f8ff";
+  }
+
+  if (score >= 30) {
+    return "#ffc96b";
+  }
+
+  return "#ff8a7a";
+}
+
 async function warmupSound(sound: Audio.Sound) {
   try {
     await sound.setStatusAsync({ volume: 0 });
@@ -35,6 +64,7 @@ export default function SavedPasswordsScreen() {
   const { savedPasswords, removeSavedPassword, renameSavedPassword } =
     usePasswordStore();
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
+  const [revealedIds, setRevealedIds] = useState<Record<string, boolean>>({});
   const [justSaved, setJustSaved] = useState<Record<string, boolean>>({});
   const [copiedToastById, setCopiedToastById] = useState<
     Record<string, boolean>
@@ -46,6 +76,9 @@ export default function SavedPasswordsScreen() {
   const copiedToastTimers = useRef<
     Record<string, ReturnType<typeof setTimeout>>
   >({});
+  const clipboardClearTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const sounds = useRef<{
     save: Audio.Sound | null;
     delete: Audio.Sound | null;
@@ -143,6 +176,9 @@ export default function SavedPasswordsScreen() {
         clearTimeout(timer);
       });
       copiedToastTimers.current = {};
+      if (clipboardClearTimer.current) {
+        clearTimeout(clipboardClearTimer.current);
+      }
 
       void Promise.all(
         Object.values(sounds.current)
@@ -206,6 +242,14 @@ export default function SavedPasswordsScreen() {
     await Clipboard.setStringAsync(password);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    if (clipboardClearTimer.current) {
+      clearTimeout(clipboardClearTimer.current);
+    }
+    clipboardClearTimer.current = setTimeout(() => {
+      void Clipboard.setStringAsync("");
+      clipboardClearTimer.current = null;
+    }, 60000);
+
     if (copiedToastTimers.current[id]) {
       clearTimeout(copiedToastTimers.current[id]);
     }
@@ -227,6 +271,14 @@ export default function SavedPasswordsScreen() {
   const formatDate = (isoDate: string) =>
     dateFormatter.format(new Date(isoDate));
 
+  const toggleVisible = (id: string) => {
+    setRevealedIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+    void Haptics.selectionAsync();
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.bgOrbTop} />
@@ -243,6 +295,13 @@ export default function SavedPasswordsScreen() {
       >
         <Text style={styles.header}>{strings.saved.title}</Text>
         <Text style={styles.subHeader}>{strings.saved.subtitle}</Text>
+        {savedPasswords.length > 0 && (
+          <View style={styles.topActionRow}>
+            <Text
+              style={styles.countText}
+            >{`${savedPasswords.length}/${SAVED_LIMIT}`}</Text>
+          </View>
+        )}
 
         {savedPasswords.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -263,8 +322,11 @@ export default function SavedPasswordsScreen() {
                   }}
                   maxLength={15}
                   placeholder={strings.saved.recordPlaceholder(index + 1)}
-                  placeholderTextColor="#91ddff"
-                  style={styles.orderInput}
+                  placeholderTextColor={getStrengthColor(item.password)}
+                  style={[
+                    styles.orderInput,
+                    { color: getStrengthColor(item.password) },
+                  ]}
                 />
                 <Text style={styles.timeText}>{formatDate(item.savedAt)}</Text>
                 {((nameDrafts[item.id] ?? "") !== item.name ||
@@ -289,7 +351,20 @@ export default function SavedPasswordsScreen() {
                 )}
               </View>
 
-              <Text style={styles.passwordText}>{item.password}</Text>
+              <Pressable onPress={() => toggleVisible(item.id)}>
+                <Text
+                  style={[
+                    revealedIds[item.id]
+                      ? styles.passwordText
+                      : styles.passwordHiddenText,
+                    revealedIds[item.id]
+                      ? { color: getStrengthColor(item.password) }
+                      : { color: "#cfeff6" },
+                  ]}
+                >
+                  {revealedIds[item.id] ? item.password : HIDDEN_PASSWORD}
+                </Text>
+              </Pressable>
 
               <View style={styles.actionRow}>
                 <Pressable
@@ -308,6 +383,20 @@ export default function SavedPasswordsScreen() {
                       : strings.common.copy}
                   </Text>
                 </Pressable>
+
+                <Pressable
+                  style={styles.saveButton}
+                  onPress={() => {
+                    toggleVisible(item.id);
+                  }}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {revealedIds[item.id]
+                      ? strings.common.hide
+                      : strings.common.show}
+                  </Text>
+                </Pressable>
+
                 <Pressable
                   style={styles.deleteButton}
                   onPress={() => {
@@ -350,7 +439,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 18,
-    paddingTop: 42,
+    paddingTop: 58,
     paddingBottom: 32,
     gap: 10,
   },
@@ -444,12 +533,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(69, 225, 174, 0.8)",
     backgroundColor: "rgba(45, 197, 149, 0.18)",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
   saveButtonText: {
     color: "#ddfff4",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     letterSpacing: 0.4,
   },
@@ -458,12 +547,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255, 121, 146, 0.8)",
     backgroundColor: "rgba(255, 85, 119, 0.16)",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
   deleteButtonText: {
     color: "#ffdce3",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     letterSpacing: 0.4,
   },
@@ -471,6 +560,26 @@ const styles = StyleSheet.create({
     color: "#f2fffc",
     fontSize: 17,
     fontWeight: "600",
+  },
+  passwordHiddenText: {
+    fontSize: 20,
+    letterSpacing: 6,
+    fontWeight: "700",
+    color: "#cfeff6",
+  },
+  countText: {
+    color: "#9ec1d8",
+    fontSize: 13,
+    fontWeight: "700",
+    marginRight: 8,
+    alignSelf: "center",
+  },
+  topActionRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 6,
+    alignItems: "center",
+    gap: 8,
   },
   actionRow: {
     flexDirection: "row",
@@ -483,12 +592,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(127, 251, 226, 0.7)",
     backgroundColor: "rgba(24, 232, 198, 0.16)",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
   copyButtonText: {
     color: "#d8fff8",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     letterSpacing: 0.4,
   },
