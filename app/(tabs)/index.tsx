@@ -53,14 +53,39 @@ const CHARSETS = {
   symbols: "!@#$%^&*()_+-=[]{}|;:,.<>?/",
 };
 
+function secureRandomInt(maxExclusive: number) {
+  if (maxExclusive <= 1) {
+    return 0;
+  }
+
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.getRandomValues) {
+    return Math.floor(Math.random() * maxExclusive);
+  }
+
+  try {
+    const random = new Uint32Array(1);
+    const maxUint32 = 0xffffffff;
+    const limit = maxUint32 - (maxUint32 % maxExclusive);
+    do {
+      cryptoApi.getRandomValues(random);
+    } while (random[0] >= limit);
+
+    return random[0] % maxExclusive;
+  } catch {
+    // Bazı cihazlarda getRandomValues runtime'da hata verebilir.
+    return Math.floor(Math.random() * maxExclusive);
+  }
+}
+
 function randomChar(source: string) {
-  return source.charAt(Math.floor(Math.random() * source.length));
+  return source.charAt(secureRandomInt(source.length));
 }
 
 function shuffle(text: string) {
   const chars = text.split("");
   for (let i = chars.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = secureRandomInt(i + 1);
     [chars[i], chars[j]] = [chars[j], chars[i]];
   }
 
@@ -471,7 +496,11 @@ export default function HomeScreen() {
       clearTimeout(clipboardClearTimer.current);
     }
     clipboardClearTimer.current = setTimeout(() => {
-      void Clipboard.setStringAsync("");
+      void Clipboard.getStringAsync().then((currentClipboardValue) => {
+        if (currentClipboardValue === password) {
+          void Clipboard.setStringAsync("");
+        }
+      });
       clipboardClearTimer.current = null;
     }, 60000);
     Animated.sequence([
@@ -615,6 +644,7 @@ export default function HomeScreen() {
           </Animated.View>
         </Animated.View>
 
+        {/* Glow uses the JS driver; scale uses the native driver — must be separate Animated views. */}
         <Animated.View
           style={[
             styles.generateOuter,
@@ -624,7 +654,6 @@ export default function HomeScreen() {
               shadowRadius: 16,
               shadowOffset: { width: 0, height: 0 },
               backgroundColor: glowColor,
-              transform: [{ scale: buttonScale }],
             },
           ]}
         >
@@ -653,22 +682,24 @@ export default function HomeScreen() {
               />
             </>
           )}
-          <Pressable
-            style={styles.generateButton}
-            onPress={() => {
-              void onGenerate();
-            }}
-            disabled={isGenerating}
-          >
-            <MaterialCommunityIcons
-              name="lightning-bolt"
-              size={26}
-              color="#1bff61"
-            />
-            <Text style={styles.generateButtonText}>
-              {strings.home.generate.toUpperCase()}
-            </Text>
-          </Pressable>
+          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+            <Pressable
+              style={styles.generateButton}
+              onPress={() => {
+                void onGenerate();
+              }}
+              disabled={isGenerating}
+            >
+              <MaterialCommunityIcons
+                name="lightning-bolt"
+                size={26}
+                color="#1bff61"
+              />
+              <Text style={styles.generateButtonText}>
+                {strings.home.generate.toUpperCase()}
+              </Text>
+            </Pressable>
+          </Animated.View>
         </Animated.View>
 
         <View style={styles.optionsCard}>

@@ -191,6 +191,16 @@ async function hydrateSavedPasswords(): Promise<SavedPasswordItem[]> {
 }
 
 function createId() {
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi?.getRandomValues) {
+    const bytes = new Uint8Array(8);
+    cryptoApi.getRandomValues(bytes);
+    const randomPart = Array.from(bytes, (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    return `${Date.now()}-${randomPart}`;
+  }
+
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 

@@ -234,7 +234,11 @@ export default function RecentPasswordsScreen() {
       clearTimeout(clipboardClearTimer.current);
     }
     clipboardClearTimer.current = setTimeout(() => {
-      void Clipboard.setStringAsync("");
+      void Clipboard.getStringAsync().then((currentClipboardValue) => {
+        if (currentClipboardValue === password) {
+          void Clipboard.setStringAsync("");
+        }
+      });
       clipboardClearTimer.current = null;
     }, 60000);
 
